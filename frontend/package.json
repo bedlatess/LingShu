@@ -1,0 +1,16 @@
+{
+  "name": "@lingshu/frontend",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/shared",
+    "user",
+    "admin"
+  ],
+  "scripts": {
+    "dev:user": "npm --workspace @lingshu/user run dev",
+    "dev:admin": "npm --workspace @lingshu/admin run dev",
+    "build": "npm --workspace @lingshu/user run build && npm --workspace @lingshu/admin run build"
+  }
+}
+

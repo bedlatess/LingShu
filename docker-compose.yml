@@ -1,0 +1,65 @@
+# 灵枢生产部署（全栈）：postgres + redis + 后端网关 + 前端(Nginx 托管 user/admin)
+# 后端启动时自动执行 migrations（internal/bootstrap.Migrate），无需单独迁移步骤。
+#
+# 上线前务必：复制 .env.example 为 .env，并改掉 JWT_SECRET / KEY_ENCRYPTION_SECRET /
+# ADMIN_PASS / POSTGRES_PASSWORD 等占位密钥（见 README 部署章节）。
+
+services:
+  app:
+    build: ./backend
+    env_file:
+      - .env.example
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgres://lingshu:${POSTGRES_PASSWORD:-lingshu}@postgres:5432/lingshu?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+    expose:
+      - "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    build: ./frontend
+    ports:
+      - "80:80"      # 用户端（公开门面）
+      - "8081:8081"  # 管理端（内部使用，建议加内网/IP 白名单）
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: lingshu
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lingshu}
+      POSTGRES_DB: lingshu
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lingshu"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:

@@ -1,0 +1,22 @@
+services:
+  app:
+    build:
+      context: ./backend
+      target: runtime
+    env_file:
+      - .env.example
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgres://lingshu:lingshu@postgres:5432/lingshu?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8080:8080"
+
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"

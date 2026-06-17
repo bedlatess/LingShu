@@ -1,0 +1,12 @@
+.env
+.env.local
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+.superpowers/
+*.log
+tmp/
+backend/bin/
+

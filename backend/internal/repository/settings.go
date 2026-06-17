@@ -1,0 +1,71 @@
+package repository
+
+import (
+	"context"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+type Setting struct {
+	Key         string    `json:"key"`
+	Value       string    `json:"value"`
+	Description string    `json:"description"`
+	UpdatedBy   string    `json:"updated_by"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type SettingUpdate struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type SettingsRepository struct {
+	db *pgxpool.Pool
+}
+
+func NewSettingsRepository(db *pgxpool.Pool) SettingsRepository {
+	return SettingsRepository{db: db}
+}
+
+func (r SettingsRepository) List(ctx context.Context) ([]Setting, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT key, value, description, COALESCE(updated_by::text, ''), updated_at
+		FROM system_settings
+		ORDER BY key ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Setting{}
+	for rows.Next() {
+		var item Setting
+		if err := rows.Scan(&item.Key, &item.Value, &item.Description, &item.UpdatedBy, &item.UpdatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (r SettingsRepository) Patch(ctx context.Context, actorID string, updates []SettingUpdate) ([]Setting, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	for _, update := range updates {
+		if _, err := tx.Exec(ctx, `
+			UPDATE system_settings
+			SET value=$2, updated_by=$3::uuid, updated_at=now()
+			WHERE key=$1
+		`, update.Key, update.Value, actorID); err != nil {
+			return nil, err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return r.List(ctx)
+}
