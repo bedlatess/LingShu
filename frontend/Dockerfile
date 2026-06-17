@@ -4,12 +4,12 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
-# 先拷 workspace 清单，利用缓存安装依赖。
-# 注意：用 npm install 而非 npm ci —— 锁文件可能是 Windows 上生成的，
-# 锁定了 win32 版 Rollup 原生二进制；在 Linux 容器内需重新解析平台相关
-# 的 optional 依赖（@rollup/rollup-linux-*），npm ci 会漏装导致构建报
-# MODULE_NOT_FOUND: rollup/dist/native.js（npm/cli#4828）。
-COPY package.json package-lock.json ./
+# 先拷 workspace 清单安装依赖。
+# 注意：锁文件是在 Windows 上生成的，optionalDependencies 里只锁了 win32 版
+# Rollup 原生二进制。容器是 Linux（且本服务器为 arm64），必须删掉锁文件让 npm
+# 完全按容器真实平台（linux-arm64-musl 等）重新解析，否则平台相关二进制漏装，
+# 构建报 MODULE_NOT_FOUND: rollup/dist/native.js（npm/cli#4828）。
+COPY package.json ./
 COPY packages/shared/package.json packages/shared/
 COPY user/package.json user/
 COPY admin/package.json admin/
