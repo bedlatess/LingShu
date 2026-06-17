@@ -193,8 +193,17 @@ func (s GatewayService) FinalizeStream(ctx context.Context, principal GatewayPri
 	s.frozen.ReleaseConcurrency(ctx, "channel:"+channel.ID)
 	defer billing.Release(ctx, s.frozen, principal.UserID, estimate)
 	multiplierUnits, _ := billing.DecimalStringToUnits(model.RateMultiplier)
-	usage := upstream.Usage{PromptTokens: int(billing.EstimateTokens(string(rawBody))), CompletionTokens: int(billing.EstimateStreamTokens(string(responseBody)))}
-	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	// 优先使用上游在 SSE 末帧回灌的真实 usage；取不到才退回本地 tiktoken 估算。
+	isEstimated := false
+	usage := upstream.ExtractStreamUsage(string(responseBody))
+	if usage.TotalTokens == 0 {
+		isEstimated = true
+		usage = upstream.Usage{
+			PromptTokens:     int(billing.EstimateTokens(string(rawBody))),
+			CompletionTokens: int(billing.EstimateStreamTokens(string(responseBody))),
+		}
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	}
 	var req ChatRequest
 	_ = json.Unmarshal(rawBody, &req)
 	actual := actualChargeForModel(model, req, usage, multiplierUnits)
@@ -219,7 +228,7 @@ func (s GatewayService) FinalizeStream(ctx context.Context, principal GatewayPri
 		RateMultiplier:   model.RateMultiplier,
 		Charge:           billing.UnitsToDecimalString(actual.Charge),
 		IsStream:         true,
-		IsEstimated:      true,
+		IsEstimated:      isEstimated,
 		LatencyMS:        repository.NowMS(start),
 		ClientIP:         clientIP,
 	})
@@ -476,14 +485,31 @@ func shouldRetryStatus(status int) bool {
 }
 
 func bodyForUpstream(rawBody []byte, upstreamModelName string) []byte {
-	if strings.TrimSpace(upstreamModelName) == "" {
-		return rawBody
-	}
 	var payload map[string]any
 	if err := json.Unmarshal(rawBody, &payload); err != nil {
 		return rawBody
 	}
-	payload["model"] = upstreamModelName
+	changed := false
+	if name := strings.TrimSpace(upstreamModelName); name != "" {
+		payload["model"] = name
+		changed = true
+	}
+	// 流式请求强制要求上游在末帧回灌真实 usage，否则只能本地估算导致计费失真。
+	// 多数 OpenAI 兼容上游需要显式 stream_options.include_usage=true 才回灌。
+	if stream, _ := payload["stream"].(bool); stream {
+		opts, ok := payload["stream_options"].(map[string]any)
+		if !ok {
+			opts = map[string]any{}
+		}
+		if _, exists := opts["include_usage"]; !exists {
+			opts["include_usage"] = true
+			payload["stream_options"] = opts
+			changed = true
+		}
+	}
+	if !changed {
+		return rawBody
+	}
 	out, err := json.Marshal(payload)
 	if err != nil {
 		return rawBody

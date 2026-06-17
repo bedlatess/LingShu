@@ -1,6 +1,7 @@
 package upstream
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -69,4 +70,34 @@ func extractUsage(body []byte) Usage {
 	}
 	_ = json.Unmarshal(body, &parsed)
 	return parsed.Usage
+}
+
+// ExtractStreamUsage 从已捕获的 SSE 响应里取上游回灌的真实 usage。
+// OpenAI 兼容上游在流式时通常把 usage 放在最后一个非 [DONE] 的 data 帧里
+// （需要客户端带 stream_options.include_usage，多数中转站默认就回灌）。
+// 取最后一个出现 total_tokens>0 的 usage 为准；取不到返回零值，调用方退回估算。
+func ExtractStreamUsage(raw string) Usage {
+	var found Usage
+	scanner := bufio.NewScanner(strings.NewReader(raw))
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if data == "" || data == "[DONE]" {
+			continue
+		}
+		var parsed struct {
+			Usage Usage `json:"usage"`
+		}
+		if err := json.Unmarshal([]byte(data), &parsed); err != nil {
+			continue
+		}
+		if parsed.Usage.TotalTokens > 0 {
+			found = parsed.Usage
+		}
+	}
+	return found
 }
