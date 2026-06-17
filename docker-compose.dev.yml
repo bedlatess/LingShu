@@ -11,12 +11,12 @@ services:
       DATABASE_URL: postgres://lingshu:lingshu@postgres:5432/lingshu?sslmode=disable
       REDIS_URL: redis://redis:6379/0
     ports:
-      - "8080:8080"
+      - "19088:8080"
 
   postgres:
     ports:
-      - "5432:5432"
+      - "19432:5432"
 
   redis:
     ports:
-      - "6379:6379"
+      - "19379:6379"

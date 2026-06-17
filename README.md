@@ -39,9 +39,11 @@ docker compose up --build -d
 
 The production compose file starts the full stack:
 
-- `web` — Nginx serving both SPAs and reverse-proxying the backend:
-  - **User console** (public) on port `80`
-  - **Admin console** (internal — restrict to LAN/VPN or an IP allowlist) on port `8081`
+- `web` — Nginx serving both SPAs and reverse-proxying the backend
+  (host ports use an uncommon `190xx` block to avoid clashing with whatever
+  already runs on the server):
+  - **User console** (public) on port `19080`
+  - **Admin console** (internal — restrict to LAN/VPN or an IP allowlist) on port `19081`
 - `app` — Go gateway, internal only (exposed to other containers on `8080`, not published)
 - `postgres` with the `pgdata` persistent volume
 - `redis` with AOF enabled and the `redisdata` persistent volume
@@ -53,8 +55,8 @@ migrations and seeds the initial administrator on startup.
 Smoke check after `up`:
 
 ```bash
-curl -fsS http://localhost/healthz        # via web → app
-curl -fsS http://localhost:8081/healthz   # admin host → app
+curl -fsS http://localhost:19080/healthz   # via web → app
+curl -fsS http://localhost:19081/healthz   # admin host → app
 ```
 
 3. Put Caddy or Nginx with TLS in front for HTTPS in production. If you use

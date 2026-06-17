@@ -31,8 +31,8 @@ services:
   web:
     build: ./frontend
     ports:
-      - "80:80"      # 用户端（公开门面）
-      - "8081:8081"  # 管理端（内部使用，建议加内网/IP 白名单）
+      - "19080:80"     # 用户端（公开门面），冷门宿主端口避免占用冲突
+      - "19081:8081"   # 管理端（内部使用，建议加内网/IP 白名单）
     depends_on:
       app:
         condition: service_healthy
