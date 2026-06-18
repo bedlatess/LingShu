@@ -127,6 +127,8 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 		r.Get("/channels/{id}", adminChannels.Detail)
 		r.Patch("/channels/{id}", adminChannels.Update)
 		r.Post("/channels/{id}/test", adminChannels.Test)
+		r.Post("/channels/{id}/sync-models", adminChannels.SyncModels)
+		r.Post("/channels/{id}/import-models", adminChannels.ImportModels)
 		r.Post("/channels/{id}/disable", adminChannels.Disable)
 		r.Delete("/channels/{id}", adminChannels.Delete)
 		r.Post("/channel-models", adminChannels.BindModel)

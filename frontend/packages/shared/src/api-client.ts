@@ -1,5 +1,5 @@
 ﻿import type { APIKey, AdminDashboard, Announcement, AuditLog, Channel, ChannelDetail, CreatedAPIKey, DailyStat, GatewayLog, HealthResponse, LedgerRecord, LoginResponse, ModelConfig, ModelDetail, ModelStat, RedeemCode, ReportRow, SystemSetting, User } from "./admin-types";
-import type { CleanupHistoryEntry, CleanupResult, PaginatedResponse } from "./types";
+import type { ChannelModelImportInput, ChannelModelImportResult, ChannelModelSyncResult, CleanupHistoryEntry, CleanupResult, PaginatedResponse } from "./types";
 import type { UserDashboard, UserGatewayLog, UserLedgerRecord, UserModelConfig } from "./user-types";
 
 const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
@@ -209,6 +209,15 @@ export function createAPI(token?: string) {
       request<{ ok: boolean; status?: number; category: string; message: string; latency_ms: number }>(`/api/admin/channels/${id}/test`, {
         method: "POST",
         body: JSON.stringify({ base_url: baseURL ?? "" })
+      }),
+    syncChannelModels: (id: string) =>
+      request<ChannelModelSyncResult>(`/api/admin/channels/${id}/sync-models`, {
+        method: "POST"
+      }),
+    importChannelModels: (id: string, payload: { strategy: "create_or_bind" | "bind_existing"; models: ChannelModelImportInput[] }) =>
+      request<{ items: ChannelModelImportResult[] }>(`/api/admin/channels/${id}/import-models`, {
+        method: "POST",
+        body: JSON.stringify(payload)
       }),
     bindChannelModel: (payload: { channel_id: string; model_id: string; upstream_model_name: string }) =>
       request<{ id: string }>("/api/admin/channel-models", {

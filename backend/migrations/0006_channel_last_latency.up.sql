@@ -1,0 +1,2 @@
+ALTER TABLE upstream_channels
+ADD COLUMN IF NOT EXISTS last_latency_ms INTEGER NOT NULL DEFAULT 0;

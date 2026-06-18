@@ -71,7 +71,14 @@ func (r GatewayRepository) ListEnabledModels(ctx context.Context) ([]GatewayMode
 		SELECT id::text, public_name, type, billing_mode,
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text, rate_multiplier::text
 		FROM models
-		WHERE status='enabled' AND deleted_at IS NULL
+		WHERE status='enabled'
+		  AND deleted_at IS NULL
+		  AND EXISTS (
+		  	SELECT 1
+		  	FROM channel_models cm
+		  	JOIN upstream_channels c ON c.id = cm.channel_id AND c.deleted_at IS NULL
+		  	WHERE cm.model_id=models.id AND cm.status='enabled' AND c.status='enabled'
+		  )
 		ORDER BY sort_order ASC, created_at DESC
 	`)
 	if err != nil {

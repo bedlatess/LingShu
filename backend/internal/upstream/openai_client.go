@@ -33,6 +33,45 @@ func (OpenAIAdapter) OpenChatStream(ctx context.Context, baseURL, apiKey string,
 	return OpenChatStream(ctx, baseURL, apiKey, timeoutSeconds, PrepareOpenAIBody(rawBody, upstreamModelName))
 }
 
+func (OpenAIAdapter) ListModels(ctx context.Context, baseURL, apiKey string) ([]ProviderModel, error) {
+	client := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(baseURL, "/")+"/models", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 400 {
+		return nil, &ProviderError{StatusCode: resp.StatusCode, Body: string(body)}
+	}
+	var parsed struct {
+		Data []struct {
+			ID      string `json:"id"`
+			OwnedBy string `json:"owned_by"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, err
+	}
+	models := make([]ProviderModel, 0, len(parsed.Data))
+	for _, item := range parsed.Data {
+		id := strings.TrimSpace(item.ID)
+		if id == "" {
+			continue
+		}
+		models = append(models, ProviderModel{ID: id, Type: inferModelType(id), Owned: item.OwnedBy})
+	}
+	return models, nil
+}
+
 func ForwardChat(ctx context.Context, baseURL, apiKey string, timeoutSeconds int, body []byte) (ChatResponse, error) {
 	timeout := time.Duration(timeoutSeconds) * time.Second
 	if timeout <= 0 {
@@ -56,6 +95,32 @@ func ForwardChat(ctx context.Context, baseURL, apiKey string, timeoutSeconds int
 		return ChatResponse{}, err
 	}
 	return ChatResponse{StatusCode: resp.StatusCode, Body: respBody, Usage: extractUsage(respBody)}, nil
+}
+
+type ProviderError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *ProviderError) Error() string {
+	if strings.TrimSpace(e.Body) == "" {
+		return http.StatusText(e.StatusCode)
+	}
+	return strings.TrimSpace(e.Body)
+}
+
+func inferModelType(id string) string {
+	name := strings.ToLower(id)
+	switch {
+	case strings.Contains(name, "embedding") || strings.Contains(name, "embed"):
+		return "embedding"
+	case strings.Contains(name, "image") || strings.Contains(name, "dall-e") || strings.Contains(name, "gpt-image"):
+		return "image"
+	case strings.Contains(name, "video") || strings.Contains(name, "sora"):
+		return "video"
+	default:
+		return "chat"
+	}
 }
 
 func OpenChatStream(ctx context.Context, baseURL, apiKey string, timeoutSeconds int, body []byte) (*http.Response, error) {

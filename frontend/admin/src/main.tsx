@@ -1,12 +1,13 @@
 import React, { Suspense, useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { AuditOutlined, DashboardOutlined, KeyOutlined, SettingOutlined, TeamOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, ConfigProvider, Form, Input, Layout, Menu, Modal, Select, Space, Spin, Typography, message } from "antd";
+import { Alert, Button, Card, ConfigProvider, Drawer, Form, Input, Layout, Menu, Modal, Select, Space, Spin, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import {
   createAPI,
   designTokens,
+  perKToM,
   type APIKey,
   type AdminDashboard,
   type Announcement,
@@ -286,8 +287,8 @@ function App() {
     { title: "模型", dataIndex: "public_name", render: (_, model) => <Link to={`/models/${model.id}`}>{model.public_name}</Link> },
     { title: "类型", dataIndex: "type" },
     { title: "计费", dataIndex: "billing_mode" },
-    { title: "输入基准/1K", dataIndex: "input_price_per_1k" },
-    { title: "输出基准/1K", dataIndex: "output_price_per_1k" },
+    { title: "输入价/1M", dataIndex: "input_price_per_1k", render: (value) => perKToM(value) },
+    { title: "输出价/1M", dataIndex: "output_price_per_1k", render: (value) => perKToM(value) },
     { title: "单次基准", dataIndex: "price_per_call" },
     { title: "倍率", dataIndex: "rate_multiplier" },
     { title: "状态", dataIndex: "status" },
@@ -298,7 +299,11 @@ function App() {
           <Button
             onClick={() => {
               setEditingModel(model);
-              modelForm.setFieldsValue(model);
+              modelForm.setFieldsValue({
+                ...model,
+                input_price_per_1k: perKToM(model.input_price_per_1k),
+                output_price_per_1k: perKToM(model.output_price_per_1k)
+              });
             }}
           >
             编辑
@@ -330,6 +335,8 @@ function App() {
     { title: "Base URL", dataIndex: "base_url" },
     { title: "权重", dataIndex: "weight" },
     { title: "已绑模型", dataIndex: "bound_count", render: (_, channel) => <Link to={`/channels/${channel.id}`}>{channel.bound_count ?? 0}</Link> },
+    { title: "最近延迟(ms)", dataIndex: "last_latency_ms", render: (value) => value ?? 0 },
+    { title: "最近成功", dataIndex: "last_success_at", render: (value) => value ?? "-" },
     { title: "状态", dataIndex: "status" },
     { title: "健康", dataIndex: "health" },
     {
@@ -514,18 +521,23 @@ function App() {
           <Form.Item name="password" label="新密码" rules={[{ required: true, min: 8 }]}><Input.Password /></Form.Item>
         </Form>
       </Modal>
-      <Modal title={editingChannel ? `编辑渠道：${editingChannel.name}` : "编辑渠道"} open={Boolean(editingChannel)} onCancel={() => setEditingChannel(null)} onOk={() => channelForm.submit()} destroyOnClose width={720}>
+      <Drawer
+        title={editingChannel ? `编辑渠道：${editingChannel.name}` : "编辑渠道"}
+        open={Boolean(editingChannel)}
+        onClose={() => setEditingChannel(null)}
+        destroyOnHidden
+        width={520}
+        extra={<Button type="primary" onClick={() => channelForm.submit()}>保存</Button>}
+      >
         <Form form={channelForm} layout="vertical" onFinish={handleUpdateChannel}>
-          <Space wrap align="start">
-            <Form.Item name="name" label="名称" rules={[{ required: true }]}><Input style={{ width: 220 }} /></Form.Item>
-            <Form.Item name="provider_type" label="供应商"><Select style={{ width: 180 }} options={providerOptions} /></Form.Item>
-            <Form.Item name="base_url" label="上游地址" rules={[{ required: true }]}><Input style={{ width: 300 }} /></Form.Item>
-            <Form.Item name="api_key" label="新密钥"><Input.Password style={{ width: 220 }} placeholder="留空则不修改" /></Form.Item>
-            <Form.Item name="status" label="状态"><Select style={{ width: 120 }} options={[{ value: "enabled", label: "启用" }, { value: "disabled", label: "停用" }]} /></Form.Item>
-            <Form.Item name="weight" label="权重"><Input style={{ width: 100 }} /></Form.Item>
-          </Space>
+          <Form.Item name="name" label="名称" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item name="provider_type" label="供应商"><Select options={providerOptions} /></Form.Item>
+          <Form.Item name="base_url" label="上游地址" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item name="api_key" label="新密钥"><Input.Password placeholder="留空则不修改" /></Form.Item>
+          <Form.Item name="status" label="状态"><Select options={[{ value: "enabled", label: "启用" }, { value: "disabled", label: "停用" }]} /></Form.Item>
+          <Form.Item name="weight" label="权重"><Input /></Form.Item>
         </Form>
-      </Modal>
+      </Drawer>
     </Theme>
   );
 }

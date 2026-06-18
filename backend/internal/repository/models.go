@@ -77,6 +77,37 @@ func (r ModelRepository) List(ctx context.Context) ([]Model, error) {
 	return items, err
 }
 
+func (r ModelRepository) ListVisible(ctx context.Context) ([]Model, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id::text, public_name, type, model_group, billing_mode,
+		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
+		       rate_multiplier::text, status, sort_order, created_at, updated_at
+		FROM models
+		WHERE status='enabled'
+		  AND deleted_at IS NULL
+		  AND EXISTS (
+		  	SELECT 1
+		  	FROM channel_models cm
+		  	JOIN upstream_channels c ON c.id = cm.channel_id AND c.deleted_at IS NULL
+		  	WHERE cm.model_id=models.id AND cm.status='enabled' AND c.status='enabled'
+		  )
+		ORDER BY sort_order ASC, created_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Model{}
+	for rows.Next() {
+		item, err := scanModel(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 func (r ModelRepository) ListPaged(ctx context.Context, limit, offset int) ([]Model, int, error) {
 	var total int
 	if err := r.db.QueryRow(ctx, `SELECT count(*)::int FROM models WHERE deleted_at IS NULL`).Scan(&total); err != nil {

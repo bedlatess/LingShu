@@ -36,6 +36,9 @@ export interface UserModelConfig {
   type: string;
   group: string;
   billing_mode: string;
+  input_unit_price: string;
+  output_unit_price: string;
+  call_unit_price: string;
   status: string;
   sort_order: number;
 }

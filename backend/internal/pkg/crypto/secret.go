@@ -7,3 +7,11 @@ import "encoding/base64"
 func Protect(secret string) string {
 	return base64.StdEncoding.EncodeToString([]byte(secret))
 }
+
+func Unprotect(protected string) string {
+	raw, err := base64.StdEncoding.DecodeString(protected)
+	if err != nil {
+		return protected
+	}
+	return string(raw)
+}

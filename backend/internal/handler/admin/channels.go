@@ -99,6 +99,30 @@ func (h ChannelHandler) Test(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, result)
 }
 
+func (h ChannelHandler) SyncModels(w http.ResponseWriter, r *http.Request) {
+	result, err := h.channels.SyncModels(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	httpx.JSON(w, http.StatusOK, result)
+}
+
+func (h ChannelHandler) ImportModels(w http.ResponseWriter, r *http.Request) {
+	current, _ := middleware.CurrentUser(r.Context())
+	var input service.ImportChannelModelsInput
+	if err := httpx.Decode(r, &input); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	result, err := h.channels.ImportModels(r.Context(), current.ID, chi.URLParam(r, "id"), input, clientIP(r), r.UserAgent())
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"items": result})
+}
+
 func (h ChannelHandler) BindModel(w http.ResponseWriter, r *http.Request) {
 	current, _ := middleware.CurrentUser(r.Context())
 	var input repository.BindChannelModelInput

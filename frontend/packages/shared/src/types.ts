@@ -95,6 +95,41 @@ export interface Channel {
   health: string;
   weight: number;
   bound_count: number;
+  last_latency_ms: number;
+  last_success_at?: string;
+}
+
+export interface ProviderModel {
+  id: string;
+  type: string;
+  owned: string;
+}
+
+export interface ChannelModelImportInput {
+  upstream_name: string;
+  public_name: string;
+  type: string;
+  billing_mode: string;
+  input_price_per_1k: string;
+  output_price_per_1k: string;
+  price_per_call?: string;
+  rate_multiplier: string;
+  status?: string;
+  sort_order?: number;
+}
+
+export interface ChannelModelImportResult {
+  model_id: string;
+  public_name: string;
+  upstream_model_name: string;
+  binding_id: string;
+  created: boolean;
+  bound: boolean;
+}
+
+export interface ChannelModelSyncResult {
+  upstream_models: ProviderModel[];
+  existing_bindings: ChannelDetailBinding[];
 }
 
 export interface Announcement {

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Alert, Card, Form, Space, Table } from "antd";
+import { Alert, Card, Form, Input, Select, Space, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Link, useParams } from "react-router-dom";
-import { createAPI, type ModelConfig, type ModelDetail } from "@lingshu/shared";
+import { createAPI, perKToM, type ModelConfig, type ModelDetail } from "@lingshu/shared";
 
 import { errText, metricCards, type Pager, tablePagination } from "./admin-page-utils";
 import { ModelForm } from "./model-form";
@@ -23,6 +23,9 @@ export function ModelDetailPage({ api }: { api: AdminAPI }) {
   const { id } = useParams();
   const [detail, setDetail] = useState<ModelDetail | null>(null);
   const [error, setError] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [provider, setProvider] = useState<string>();
+  const [status, setStatus] = useState<string>();
   useEffect(() => {
     if (!id) return;
     api.getModelDetail(id).then(setDetail).catch((err) => setError(errText(err)));
@@ -30,6 +33,13 @@ export function ModelDetailPage({ api }: { api: AdminAPI }) {
   if (!id) return <Alert type="error" message="缺少模型 ID" />;
   if (error) return <Alert type="error" message={error} />;
   if (!detail) return <Card title="模型详情">加载中...</Card>;
+  const filteredChannels = detail.channels.filter((item) => {
+    const q = keyword.trim().toLowerCase();
+    if (q && !`${item.channel_name} ${item.upstream_model_name}`.toLowerCase().includes(q)) return false;
+    if (provider && item.provider_type !== provider) return false;
+    if (status && item.status !== status) return false;
+    return true;
+  });
   const columns: ColumnsType<ModelDetail["channels"][number]> = [
     { title: "渠道", dataIndex: "channel_name", render: (_, item) => <Link to={`/channels/${item.channel_id}`}>{item.channel_name}</Link> },
     { title: "供应商", dataIndex: "provider_type" },
@@ -45,12 +55,21 @@ export function ModelDetailPage({ api }: { api: AdminAPI }) {
           { label: "计费方式", value: detail.model.billing_mode },
           { label: "类型", value: detail.model.type },
           { label: "状态", value: detail.model.status },
+          { label: "输入价/1M", value: perKToM(detail.model.input_price_per_1k) },
+          { label: "输出价/1M", value: perKToM(detail.model.output_price_per_1k) },
           { label: "累计请求", value: detail.stats.requests },
           { label: "累计扣费", value: detail.stats.charge },
           { label: "毛利", value: detail.stats.gross_profit }
         ])}
       </Card>
-      <Card title="绑定渠道"><Table rowKey="id" columns={columns} dataSource={detail.channels} /></Card>
+      <Card title="绑定渠道">
+        <Space wrap style={{ marginBottom: 12 }}>
+          <Input.Search placeholder="搜索渠道或上游模型" allowClear onSearch={setKeyword} onChange={(event) => setKeyword(event.target.value)} style={{ width: 260 }} />
+          <Select allowClear placeholder="供应商" value={provider} onChange={setProvider} style={{ width: 160 }} options={[{ value: "openai", label: "OpenAI 兼容" }, { value: "anthropic", label: "Anthropic" }]} />
+          <Select allowClear placeholder="状态" value={status} onChange={setStatus} style={{ width: 140 }} options={[{ value: "enabled", label: "启用" }, { value: "disabled", label: "停用" }]} />
+        </Space>
+        <Table rowKey="id" columns={columns} dataSource={filteredChannels} />
+      </Card>
     </Space>
   );
 }

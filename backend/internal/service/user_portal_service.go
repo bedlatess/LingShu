@@ -47,7 +47,7 @@ func NewUserPortalService(users repository.UserRepository, models repository.Mod
 }
 
 func (s UserPortalService) Models(ctx context.Context) ([]UserModelPrice, error) {
-	items, err := s.models.List(ctx)
+	items, err := s.models.ListVisible(ctx)
 	if err != nil {
 		return nil, err
 	}

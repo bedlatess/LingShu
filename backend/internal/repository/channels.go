@@ -25,9 +25,18 @@ type Channel struct {
 	LastSuccessAt    *time.Time `json:"last_success_at,omitempty"`
 	LastErrorAt      *time.Time `json:"last_error_at,omitempty"`
 	LastErrorMessage string     `json:"last_error_message"`
+	LastLatencyMS    int        `json:"last_latency_ms"`
 	BoundCount       int        `json:"bound_count"`
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
+}
+
+type ChannelSecret struct {
+	ID              string
+	ProviderType    string
+	BaseURL         string
+	APIKeyEncrypted string
+	TimeoutSeconds  int
 }
 
 type ChannelInput struct {
@@ -84,6 +93,29 @@ type BindChannelModelInput struct {
 	UpstreamModelName string `json:"upstream_model_name"`
 }
 
+type ImportChannelModelInput struct {
+	UpstreamName     string `json:"upstream_name"`
+	PublicName       string `json:"public_name"`
+	Type             string `json:"type"`
+	BillingMode      string `json:"billing_mode"`
+	InputPricePer1K  string `json:"input_price_per_1k"`
+	OutputPricePer1K string `json:"output_price_per_1k"`
+	PricePerCall     string `json:"price_per_call"`
+	RateMultiplier   string `json:"rate_multiplier"`
+	Status           string `json:"status"`
+	SortOrder        int    `json:"sort_order"`
+	BindExistingOnly bool   `json:"-"`
+}
+
+type ImportChannelModelResult struct {
+	ModelID           string `json:"model_id"`
+	PublicName        string `json:"public_name"`
+	UpstreamModelName string `json:"upstream_model_name"`
+	BindingID         string `json:"binding_id"`
+	Created           bool   `json:"created"`
+	Bound             bool   `json:"bound"`
+}
+
 func NewChannelRepository(db *pgxpool.Pool) ChannelRepository {
 	return ChannelRepository{db: db}
 }
@@ -101,7 +133,7 @@ func (r ChannelRepository) ListPaged(ctx context.Context, limit, offset int) ([]
 	rows, err := r.db.Query(ctx, `
 		SELECT c.id::text, c.name, c.provider_type, c.base_url, c.status, c.weight, c.timeout_seconds,
 		       c.rpm_limit, c.concurrency_limit, c.fail_threshold, c.fail_count, c.health,
-		       c.last_success_at, c.last_error_at, COALESCE(c.last_error_message, ''),
+		       c.last_success_at, c.last_error_at, COALESCE(c.last_error_message, ''), c.last_latency_ms,
 		       COALESCE(b.bound_count, 0)::int, c.created_at, c.updated_at
 		FROM upstream_channels c
 		LEFT JOIN (
@@ -135,15 +167,25 @@ func (r ChannelRepository) FindByID(ctx context.Context, id string) (Channel, er
 	err := r.db.QueryRow(ctx, `
 		SELECT id::text, name, provider_type, base_url, status, weight, timeout_seconds,
 		       rpm_limit, concurrency_limit, fail_threshold, fail_count, health,
-		       last_success_at, last_error_at, COALESCE(last_error_message, ''), 0::int, created_at, updated_at
+		       last_success_at, last_error_at, COALESCE(last_error_message, ''), last_latency_ms, 0::int, created_at, updated_at
 		FROM upstream_channels
 		WHERE id=$1 AND deleted_at IS NULL
 	`, id).Scan(
 		&item.ID, &item.Name, &item.ProviderType, &item.BaseURL, &item.Status,
 		&item.Weight, &item.TimeoutSeconds, &item.RPMLimit, &item.ConcurrencyLimit,
 		&item.FailThreshold, &item.FailCount, &item.Health, &item.LastSuccessAt,
-		&item.LastErrorAt, &item.LastErrorMessage, &item.BoundCount, &item.CreatedAt, &item.UpdatedAt,
+		&item.LastErrorAt, &item.LastErrorMessage, &item.LastLatencyMS, &item.BoundCount, &item.CreatedAt, &item.UpdatedAt,
 	)
+	return item, err
+}
+
+func (r ChannelRepository) FindSecretByID(ctx context.Context, id string) (ChannelSecret, error) {
+	var item ChannelSecret
+	err := r.db.QueryRow(ctx, `
+		SELECT id::text, provider_type, base_url, api_key_encrypted, timeout_seconds
+		FROM upstream_channels
+		WHERE id=$1 AND deleted_at IS NULL
+	`, id).Scan(&item.ID, &item.ProviderType, &item.BaseURL, &item.APIKeyEncrypted, &item.TimeoutSeconds)
 	return item, err
 }
 
@@ -197,7 +239,7 @@ func (r ChannelRepository) Create(ctx context.Context, input ChannelInput, encry
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		RETURNING id::text, name, provider_type, base_url, status, weight, timeout_seconds,
 		       rpm_limit, concurrency_limit, fail_threshold, fail_count, health,
-		       last_success_at, last_error_at, COALESCE(last_error_message, ''), 0::int, created_at, updated_at
+		       last_success_at, last_error_at, COALESCE(last_error_message, ''), last_latency_ms, 0::int, created_at, updated_at
 	`, input.Name, input.ProviderType, input.BaseURL, encryptedKey, input.Status, input.Weight, input.TimeoutSeconds, input.RPMLimit, input.ConcurrencyLimit, input.FailThreshold)
 	return scanChannel(row)
 }
@@ -212,7 +254,7 @@ func (r ChannelRepository) Update(ctx context.Context, id string, input ChannelI
 		WHERE id=$1 AND deleted_at IS NULL
 		RETURNING id::text, name, provider_type, base_url, status, weight, timeout_seconds,
 		       rpm_limit, concurrency_limit, fail_threshold, fail_count, health,
-		       last_success_at, last_error_at, COALESCE(last_error_message, ''), 0::int, created_at, updated_at
+		       last_success_at, last_error_at, COALESCE(last_error_message, ''), last_latency_ms, 0::int, created_at, updated_at
 	`, id, input.Name, input.ProviderType, input.BaseURL, encryptedKey, input.Status, input.Weight, input.TimeoutSeconds, input.RPMLimit, input.ConcurrencyLimit, input.FailThreshold)
 	return scanChannel(row)
 }
@@ -239,12 +281,12 @@ func (r ChannelRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (r ChannelRepository) MarkTest(ctx context.Context, id string, ok bool, message string) error {
+func (r ChannelRepository) MarkTest(ctx context.Context, id string, ok bool, message string, latencyMS int64) error {
 	if ok {
-		_, err := r.db.Exec(ctx, "UPDATE upstream_channels SET health='healthy', fail_count=0, last_success_at=now(), last_error_message=NULL WHERE id=$1 AND deleted_at IS NULL", id)
+		_, err := r.db.Exec(ctx, "UPDATE upstream_channels SET health='healthy', fail_count=0, last_success_at=now(), last_error_message=NULL, last_latency_ms=$2 WHERE id=$1 AND deleted_at IS NULL", id, latencyMS)
 		return err
 	}
-	_, err := r.db.Exec(ctx, "UPDATE upstream_channels SET health='unhealthy', fail_count=fail_count+1, last_error_at=now(), last_error_message=$2 WHERE id=$1 AND deleted_at IS NULL", id, message)
+	_, err := r.db.Exec(ctx, "UPDATE upstream_channels SET health='unhealthy', fail_count=fail_count+1, last_error_at=now(), last_error_message=$2, last_latency_ms=$3 WHERE id=$1 AND deleted_at IS NULL", id, message, latencyMS)
 	return err
 }
 
@@ -259,6 +301,64 @@ func (r ChannelRepository) BindModel(ctx context.Context, input BindChannelModel
 	var item ChannelModelBinding
 	err := row.Scan(&item.ID, &item.ChannelID, &item.ModelID, &item.UpstreamModelName, &item.Status, &item.CreatedAt)
 	return item, err
+}
+
+func (r ChannelRepository) ImportModels(ctx context.Context, channelID string, models []ImportChannelModelInput) ([]ImportChannelModelResult, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	results := make([]ImportChannelModelResult, 0, len(models))
+	for _, input := range models {
+		var modelID string
+		var created bool
+		err := tx.QueryRow(ctx, `
+			SELECT id::text
+			FROM models
+			WHERE public_name=$1 AND deleted_at IS NULL
+		`, input.PublicName).Scan(&modelID)
+		if errors.Is(err, pgx.ErrNoRows) && input.BindExistingOnly {
+			return nil, errors.New("model not found: " + input.PublicName)
+		}
+		if errors.Is(err, pgx.ErrNoRows) {
+			created = true
+			err = tx.QueryRow(ctx, `
+				INSERT INTO models (
+					public_name, type, model_group, billing_mode,
+					input_price_per_1k, output_price_per_1k, price_per_call,
+					rate_multiplier, status, sort_order
+				)
+				VALUES ($1,$2,'',$3,$4::numeric,$5::numeric,$6::numeric,$7::numeric,$8,$9)
+				RETURNING id::text
+			`, input.PublicName, input.Type, input.BillingMode, input.InputPricePer1K, input.OutputPricePer1K, input.PricePerCall, input.RateMultiplier, input.Status, input.SortOrder).Scan(&modelID)
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		var bindingID string
+		var bindingStatus string
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO channel_models (channel_id, model_id, upstream_model_name, status)
+			VALUES ($1, $2, $3, 'enabled')
+			ON CONFLICT (channel_id, model_id)
+			DO UPDATE SET upstream_model_name=EXCLUDED.upstream_model_name, status='enabled', updated_at=now()
+			RETURNING id::text, status
+		`, channelID, modelID, input.UpstreamName).Scan(&bindingID, &bindingStatus); err != nil {
+			return nil, err
+		}
+		results = append(results, ImportChannelModelResult{
+			ModelID:           modelID,
+			PublicName:        input.PublicName,
+			UpstreamModelName: input.UpstreamName,
+			BindingID:         bindingID,
+			Created:           created,
+			Bound:             bindingStatus == "enabled",
+		})
+	}
+	return results, tx.Commit(ctx)
 }
 
 func (r ChannelRepository) UnbindModel(ctx context.Context, channelID, modelID string) error {
@@ -282,7 +382,7 @@ func scanChannel(row channelScanner) (Channel, error) {
 		&item.ID, &item.Name, &item.ProviderType, &item.BaseURL, &item.Status,
 		&item.Weight, &item.TimeoutSeconds, &item.RPMLimit, &item.ConcurrencyLimit,
 		&item.FailThreshold, &item.FailCount, &item.Health, &item.LastSuccessAt,
-		&item.LastErrorAt, &item.LastErrorMessage, &item.BoundCount, &item.CreatedAt, &item.UpdatedAt,
+		&item.LastErrorAt, &item.LastErrorMessage, &item.LastLatencyMS, &item.BoundCount, &item.CreatedAt, &item.UpdatedAt,
 	)
 	return item, err
 }

@@ -99,6 +99,46 @@ func (AnthropicAdapter) OpenChatStream(ctx context.Context, baseURL, apiKey stri
 	return resp, nil
 }
 
+func (AnthropicAdapter) ListModels(ctx context.Context, baseURL, apiKey string) ([]ProviderModel, error) {
+	client := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(baseURL, "/")+"/models", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("x-api-key", apiKey)
+	req.Header.Set("anthropic-version", "2023-06-01")
+	resp, err := client.Do(req)
+	if err != nil {
+		return anthropicPresetModels(), nil
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil || resp.StatusCode >= 400 {
+		return anthropicPresetModels(), nil
+	}
+	var parsed struct {
+		Data []struct {
+			ID          string `json:"id"`
+			DisplayName string `json:"display_name"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil || len(parsed.Data) == 0 {
+		return anthropicPresetModels(), nil
+	}
+	models := make([]ProviderModel, 0, len(parsed.Data))
+	for _, item := range parsed.Data {
+		id := strings.TrimSpace(item.ID)
+		if id == "" {
+			continue
+		}
+		models = append(models, ProviderModel{ID: id, Type: "chat", Owned: firstNonEmpty(item.DisplayName, "anthropic")})
+	}
+	if len(models) == 0 {
+		return anthropicPresetModels(), nil
+	}
+	return models, nil
+}
+
 func doAnthropic(ctx context.Context, baseURL, apiKey string, timeoutSeconds int, body []byte) (*http.Response, error) {
 	timeout := time.Duration(timeoutSeconds) * time.Second
 	if timeout <= 0 {
@@ -113,6 +153,24 @@ func doAnthropic(ctx context.Context, baseURL, apiKey string, timeoutSeconds int
 	req.Header.Set("x-api-key", apiKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
 	return client.Do(req)
+}
+
+func anthropicPresetModels() []ProviderModel {
+	names := []string{
+		"claude-opus-4-1-20250805",
+		"claude-opus-4-20250514",
+		"claude-sonnet-4-20250514",
+		"claude-3-7-sonnet-20250219",
+		"claude-3-5-sonnet-20241022",
+		"claude-3-5-haiku-20241022",
+		"claude-3-opus-20240229",
+		"claude-3-haiku-20240307",
+	}
+	out := make([]ProviderModel, 0, len(names))
+	for _, name := range names {
+		out = append(out, ProviderModel{ID: name, Type: "chat", Owned: "anthropic"})
+	}
+	return out
 }
 
 func BuildAnthropicBody(rawBody []byte, upstreamModelName string, forceStream bool) ([]byte, error) {
