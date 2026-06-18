@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -75,7 +76,7 @@ func (AnthropicAdapter) ForwardChat(ctx context.Context, baseURL, apiKey string,
 		return ChatResponse{}, err
 	}
 	if resp.StatusCode >= 400 {
-		return ChatResponse{StatusCode: resp.StatusCode, Body: respBody}, nil
+		return ChatResponse{StatusCode: resp.StatusCode, Body: AnthropicErrorToOpenAI(respBody)}, nil
 	}
 	bodyOut, usage := AnthropicResponseToOpenAI(respBody)
 	return ChatResponse{StatusCode: resp.StatusCode, Body: bodyOut, Usage: usage}, nil
@@ -91,6 +92,16 @@ func (AnthropicAdapter) OpenChatStream(ctx context.Context, baseURL, apiKey stri
 		return nil, err
 	}
 	if resp.StatusCode >= 400 {
+		respBody, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if readErr != nil {
+			return nil, readErr
+		}
+		converted := AnthropicErrorToOpenAI(respBody)
+		resp.Body = io.NopCloser(bytes.NewReader(converted))
+		resp.ContentLength = int64(len(converted))
+		resp.Header.Set("Content-Type", "application/json")
+		resp.Header.Del("Content-Length")
 		return resp, nil
 	}
 	resp.Body = StreamAnthropicToOpenAI(resp.Body)
@@ -114,10 +125,15 @@ func (AnthropicAdapter) ListModels(ctx context.Context, baseURL, apiKey string) 
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil || resp.StatusCode >= 400 {
-		return anthropicPresetModels(), nil
+		if err != nil {
+			return anthropicPresetModels(), nil
+		}
 	}
 	if err := ensureJSONResponse(resp, body); err != nil {
 		return nil, err
+	}
+	if resp.StatusCode >= 400 {
+		return anthropicPresetModels(), nil
 	}
 	var parsed struct {
 		Data []struct {
@@ -260,6 +276,40 @@ func AnthropicResponseToOpenAI(raw []byte) ([]byte, Usage) {
 	return body, usage
 }
 
+func AnthropicErrorToOpenAI(raw []byte) []byte {
+	message := strings.TrimSpace(string(raw))
+	code := ""
+	var parsed struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+		Type    string `json:"type"`
+		Error   struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+			Type    string `json:"type"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(raw, &parsed); err == nil {
+		message = firstNonEmpty(parsed.Message, parsed.Error.Message, message)
+		code = firstNonEmpty(parsed.Code, parsed.Error.Code, parsed.Error.Type, parsed.Type)
+	}
+	if message == "" {
+		message = "upstream error"
+	}
+	out := map[string]any{
+		"error": map[string]any{
+			"message": message,
+			"type":    "upstream_error",
+			"code":    code,
+		},
+	}
+	body, err := json.Marshal(out)
+	if err != nil {
+		return raw
+	}
+	return body
+}
+
 func ConvertAnthropicStream(reader io.Reader) ([]byte, error) {
 	items, err := collectAnthropicStreamEvents(reader)
 	if err != nil {
@@ -297,77 +347,28 @@ func StreamAnthropicToOpenAI(upstream io.ReadCloser) io.ReadCloser {
 	go func() {
 		defer upstream.Close()
 		defer pw.Close()
-		scanner := bufio.NewScanner(upstream)
-		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-		var model string
-		var usage Usage
-		writeLine := func(content string, chunkUsage Usage) error {
-			var out bytes.Buffer
-			writeOpenAIStreamChunk(&out, model, content, chunkUsage)
-			_, err := pw.Write(out.Bytes())
-			return err
-		}
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if !strings.HasPrefix(line, "data:") {
-				continue
-			}
-			data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
-			if data == "" || data == "[DONE]" {
-				continue
-			}
-			var event struct {
-				Type  string `json:"type"`
-				Model string `json:"model"`
-				Delta struct {
-					Type         string `json:"type"`
-					Text         string `json:"text"`
-					StopReason   string `json:"stop_reason"`
-					OutputTokens int    `json:"output_tokens"`
-				} `json:"delta"`
-				Usage struct {
-					InputTokens  int `json:"input_tokens"`
-					OutputTokens int `json:"output_tokens"`
-				} `json:"usage"`
-				Message struct {
-					Model string `json:"model"`
-					Usage struct {
-						InputTokens  int `json:"input_tokens"`
-						OutputTokens int `json:"output_tokens"`
-					} `json:"usage"`
-				} `json:"message"`
-			}
-			if err := json.Unmarshal([]byte(data), &event); err != nil {
-				continue
-			}
-			if event.Model != "" {
-				model = event.Model
-			}
-			if event.Message.Model != "" {
-				model = event.Message.Model
-			}
-			if event.Message.Usage.InputTokens > 0 {
-				usage.PromptTokens = event.Message.Usage.InputTokens
-			}
-			if event.Usage.OutputTokens > 0 {
-				usage.CompletionTokens = event.Usage.OutputTokens
-			}
-			if event.Delta.OutputTokens > 0 {
-				usage.CompletionTokens = event.Delta.OutputTokens
-			}
-			if event.Type == "content_block_delta" && event.Delta.Text != "" {
-				if err := writeLine(event.Delta.Text, Usage{}); err != nil {
-					_ = pw.CloseWithError(err)
-					return
+		state := anthropicStreamState{}
+		if err := parseAnthropicSSE(upstream, func(data string) error {
+			chunk, done := state.consume(data)
+			if chunk != "" {
+				var out bytes.Buffer
+				writeOpenAIStreamChunk(&out, state.model, chunk, Usage{})
+				if _, err := pw.Write(out.Bytes()); err != nil {
+					return err
 				}
 			}
-		}
-		if err := scanner.Err(); err != nil {
+			if done {
+				return io.EOF
+			}
+			return nil
+		}); err != nil && !errors.Is(err, io.EOF) {
 			_ = pw.CloseWithError(err)
 			return
 		}
-		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
-		if err := writeLine("", usage); err != nil {
+		state.usage.TotalTokens = state.usage.PromptTokens + state.usage.CompletionTokens
+		var out bytes.Buffer
+		writeOpenAIStreamChunk(&out, state.model, "", state.usage)
+		if _, err := pw.Write(out.Bytes()); err != nil {
 			_ = pw.CloseWithError(err)
 			return
 		}
@@ -377,73 +378,119 @@ func StreamAnthropicToOpenAI(upstream io.ReadCloser) io.ReadCloser {
 }
 
 func collectAnthropicStreamEvents(reader io.Reader) ([]string, error) {
-	scanner := bufio.NewScanner(reader)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	parts := []string{}
-	var model string
-	var usage Usage
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if !strings.HasPrefix(line, "data:") {
-			continue
+	state := anthropicStreamState{}
+	err := parseAnthropicSSE(reader, func(data string) error {
+		chunk, done := state.consume(data)
+		if chunk != "" {
+			var out bytes.Buffer
+			writeOpenAIStreamChunk(&out, state.model, chunk, Usage{})
+			parts = append(parts, out.String())
 		}
-		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
-		if data == "" || data == "[DONE]" {
-			continue
+		if done {
+			return io.EOF
 		}
-		var event struct {
-			Type  string `json:"type"`
+		return nil
+	})
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+	state.usage.TotalTokens = state.usage.PromptTokens + state.usage.CompletionTokens
+	var out bytes.Buffer
+	writeOpenAIStreamChunk(&out, state.model, "", state.usage)
+	parts = append(parts, out.String(), "data: [DONE]\n\n")
+	return parts, nil
+}
+
+type anthropicStreamState struct {
+	model string
+	usage Usage
+}
+
+func (s *anthropicStreamState) consume(data string) (string, bool) {
+	data = strings.TrimSpace(data)
+	if data == "" {
+		return "", false
+	}
+	if data == "[DONE]" {
+		return "", true
+	}
+	var event struct {
+		Type  string `json:"type"`
+		Model string `json:"model"`
+		Delta struct {
+			Type         string `json:"type"`
+			Text         string `json:"text"`
+			StopReason   string `json:"stop_reason"`
+			OutputTokens int    `json:"output_tokens"`
+		} `json:"delta"`
+		Usage struct {
+			InputTokens  int `json:"input_tokens"`
+			OutputTokens int `json:"output_tokens"`
+		} `json:"usage"`
+		Message struct {
 			Model string `json:"model"`
-			Delta struct {
-				Type         string `json:"type"`
-				Text         string `json:"text"`
-				StopReason   string `json:"stop_reason"`
-				OutputTokens int    `json:"output_tokens"`
-			} `json:"delta"`
 			Usage struct {
 				InputTokens  int `json:"input_tokens"`
 				OutputTokens int `json:"output_tokens"`
 			} `json:"usage"`
-			Message struct {
-				Model string `json:"model"`
-				Usage struct {
-					InputTokens  int `json:"input_tokens"`
-					OutputTokens int `json:"output_tokens"`
-				} `json:"usage"`
-			} `json:"message"`
+		} `json:"message"`
+	}
+	if err := json.Unmarshal([]byte(data), &event); err != nil {
+		return "", false
+	}
+	if event.Model != "" {
+		s.model = event.Model
+	}
+	if event.Message.Model != "" {
+		s.model = event.Message.Model
+	}
+	if event.Message.Usage.InputTokens > 0 {
+		s.usage.PromptTokens = event.Message.Usage.InputTokens
+	}
+	if event.Usage.InputTokens > 0 {
+		s.usage.PromptTokens = event.Usage.InputTokens
+	}
+	if event.Usage.OutputTokens > 0 {
+		s.usage.CompletionTokens = event.Usage.OutputTokens
+	}
+	if event.Delta.OutputTokens > 0 {
+		s.usage.CompletionTokens = event.Delta.OutputTokens
+	}
+	if event.Type == "content_block_delta" && event.Delta.Type == "text_delta" && event.Delta.Text != "" {
+		return event.Delta.Text, false
+	}
+	return "", false
+}
+
+func parseAnthropicSSE(reader io.Reader, handle func(data string) error) error {
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	dataLines := []string{}
+	flush := func() error {
+		if len(dataLines) == 0 {
+			return nil
 		}
-		if err := json.Unmarshal([]byte(data), &event); err != nil {
+		data := strings.Join(dataLines, "\n")
+		dataLines = dataLines[:0]
+		return handle(data)
+	}
+	for scanner.Scan() {
+		line := strings.TrimRight(scanner.Text(), "\r")
+		if line == "" {
+			if err := flush(); err != nil {
+				return err
+			}
 			continue
 		}
-		if event.Model != "" {
-			model = event.Model
-		}
-		if event.Message.Model != "" {
-			model = event.Message.Model
-		}
-		if event.Message.Usage.InputTokens > 0 {
-			usage.PromptTokens = event.Message.Usage.InputTokens
-		}
-		if event.Usage.OutputTokens > 0 {
-			usage.CompletionTokens = event.Usage.OutputTokens
-		}
-		if event.Delta.OutputTokens > 0 {
-			usage.CompletionTokens = event.Delta.OutputTokens
-		}
-		if event.Type == "content_block_delta" && event.Delta.Text != "" {
-			var out bytes.Buffer
-			writeOpenAIStreamChunk(&out, model, event.Delta.Text, Usage{})
-			parts = append(parts, out.String())
+		if strings.HasPrefix(line, "data:") {
+			dataLines = append(dataLines, strings.TrimLeft(strings.TrimPrefix(line, "data:"), " "))
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, err
+		return err
 	}
-	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
-	var out bytes.Buffer
-	writeOpenAIStreamChunk(&out, model, "", usage)
-	parts = append(parts, out.String(), "data: [DONE]\n\n")
-	return parts, nil
+	return flush()
 }
 
 func contentText(value any) string {

@@ -134,14 +134,13 @@ func (r ChannelRepository) ListPaged(ctx context.Context, limit, offset int) ([]
 		SELECT c.id::text, c.name, c.provider_type, c.base_url, c.status, c.weight, c.timeout_seconds,
 		       c.rpm_limit, c.concurrency_limit, c.fail_threshold, c.fail_count, c.health,
 		       c.last_success_at, c.last_error_at, COALESCE(c.last_error_message, ''), c.last_latency_ms,
-		       COALESCE(b.bound_count, 0)::int, c.created_at, c.updated_at
+		       (
+		           SELECT COUNT(*)::int
+		           FROM channel_models cm
+		           WHERE cm.channel_id = c.id AND cm.status='enabled'
+		       ) AS bound_count,
+		       c.created_at, c.updated_at
 		FROM upstream_channels c
-		LEFT JOIN (
-			SELECT channel_id, COUNT(*)::int AS bound_count
-			FROM channel_models
-			WHERE status='enabled'
-			GROUP BY channel_id
-		) AS b ON b.channel_id = c.id
 		WHERE c.deleted_at IS NULL
 		ORDER BY c.created_at DESC
 		LIMIT $1 OFFSET $2

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -49,11 +50,11 @@ func (OpenAIAdapter) ListModels(ctx context.Context, baseURL, apiKey string) ([]
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode >= 400 {
-		return nil, &ProviderError{StatusCode: resp.StatusCode, Body: string(body)}
-	}
 	if err := ensureJSONResponse(resp, body); err != nil {
 		return nil, err
+	}
+	if resp.StatusCode >= 400 {
+		return nil, &ProviderError{StatusCode: resp.StatusCode, Body: string(body)}
 	}
 	var parsed struct {
 		Data []struct {
@@ -119,7 +120,7 @@ type ProviderContentTypeError struct {
 }
 
 func (e *ProviderContentTypeError) Error() string {
-	return "上游返回 " + firstNonEmpty(e.ContentType, "空") + " 类型而非 JSON，请检查 base_url 是否正确；HTTP " + http.StatusText(e.StatusCode) + "，body: " + truncateForError(e.Body, 200)
+	return "上游返回 " + firstNonEmpty(e.ContentType, "空") + " 类型而非 JSON，请检查 base_url 是否正确；HTTP " + strconv.Itoa(e.StatusCode) + " " + http.StatusText(e.StatusCode) + "，body: " + truncateForError(e.Body, 200)
 }
 
 func ensureJSONResponse(resp *http.Response, body []byte) error {

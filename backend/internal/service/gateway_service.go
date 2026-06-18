@@ -51,6 +51,18 @@ var (
 	ErrRateLimited         = errors.New("rate limited")
 )
 
+type UpstreamError struct {
+	StatusCode int
+	Body       []byte
+}
+
+func (e *UpstreamError) Error() string {
+	if len(e.Body) == 0 {
+		return http.StatusText(e.StatusCode)
+	}
+	return strings.TrimSpace(string(e.Body))
+}
+
 func NewGatewayService(repo repository.GatewayRepository, frozen redisstore.FrozenStore, defaultTokens int) GatewayService {
 	if defaultTokens <= 0 {
 		defaultTokens = 4096
@@ -96,6 +108,11 @@ func (s GatewayService) Chat(ctx context.Context, principal GatewayPrincipal, ra
 
 	channel, upstreamResp, err := s.forwardWithRetry(ctx, model.ID, rawBody, stickyKey(principal, req, sessionID))
 	if err != nil {
+		statusCode := http.StatusBadGateway
+		var upstreamErr *UpstreamError
+		if errors.As(err, &upstreamErr) {
+			statusCode = upstreamErr.StatusCode
+		}
 		_ = s.repo.RecordAndCharge(ctx, repository.GatewayRequestRecord{
 			RequestID:      uuid.NewString(),
 			UserID:         principal.UserID,
@@ -104,7 +121,7 @@ func (s GatewayService) Chat(ctx context.Context, principal GatewayPrincipal, ra
 			ChannelID:      channel.ID,
 			Endpoint:       "/v1/chat/completions",
 			Status:         "failed",
-			HTTPStatus:     http.StatusBadGateway,
+			HTTPStatus:     statusCode,
 			BaseCost:       "0.000000",
 			RateMultiplier: model.RateMultiplier,
 			Charge:         "0.000000",
@@ -115,6 +132,9 @@ func (s GatewayService) Chat(ctx context.Context, principal GatewayPrincipal, ra
 		})
 		if errors.Is(err, ErrRateLimited) {
 			return http.StatusTooManyRequests, nil, err
+		}
+		if upstreamErr != nil {
+			return upstreamErr.StatusCode, NormalizeUpstreamErrorBody(upstreamErr.StatusCode, upstreamErr.Body), nil
 		}
 		return http.StatusBadGateway, nil, err
 	}
@@ -321,7 +341,7 @@ func (s GatewayService) forwardWithRetry(ctx context.Context, modelID string, ra
 			continue
 		}
 		if shouldRetryStatus(resp.StatusCode) {
-			lastErr = errors.New(http.StatusText(resp.StatusCode))
+			lastErr = &UpstreamError{StatusCode: resp.StatusCode, Body: resp.Body}
 			_ = s.repo.MarkChannelFailure(ctx, channel.ID, lastErr.Error())
 			continue
 		}
@@ -365,9 +385,13 @@ func (s GatewayService) openStreamWithRetry(ctx context.Context, modelID string,
 			continue
 		}
 		if shouldRetryStatus(resp.StatusCode) {
-			lastErr = errors.New(http.StatusText(resp.StatusCode))
-			_ = s.repo.MarkChannelFailure(ctx, channel.ID, lastErr.Error())
+			body, readErr := io.ReadAll(resp.Body)
 			_ = resp.Body.Close()
+			if readErr != nil {
+				body = []byte(readErr.Error())
+			}
+			lastErr = &UpstreamError{StatusCode: resp.StatusCode, Body: body}
+			_ = s.repo.MarkChannelFailure(ctx, channel.ID, lastErr.Error())
 			s.frozen.ReleaseConcurrency(ctx, "channel:"+channel.ID)
 			continue
 		}
@@ -489,7 +513,29 @@ func (s GatewayService) openStreamOnce(ctx context.Context, channel repository.G
 }
 
 func shouldRetryStatus(status int) bool {
-	return status == http.StatusUnauthorized || status == http.StatusForbidden || status == http.StatusTooManyRequests || status >= 500
+	return status >= 500
+}
+
+func NormalizeUpstreamErrorBody(status int, body []byte) []byte {
+	trimmed := strings.TrimSpace(string(body))
+	if trimmed != "" && json.Valid([]byte(trimmed)) {
+		return []byte(trimmed)
+	}
+	message := trimmed
+	if message == "" {
+		message = http.StatusText(status)
+	}
+	out, err := json.Marshal(map[string]any{
+		"error": map[string]any{
+			"message":         message,
+			"type":            "upstream_error",
+			"upstream_status": status,
+		},
+	})
+	if err != nil {
+		return []byte(`{"error":{"message":"upstream error","type":"upstream_error"}}`)
+	}
+	return out
 }
 
 func bodyWithMaxTokens(rawBody []byte, maxTokens int) []byte {

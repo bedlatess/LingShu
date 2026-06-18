@@ -61,10 +61,16 @@ func (h Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		model, channel, estimate, resp, err := h.gateway.OpenChatStream(r.Context(), principalDTO, body, sessionID(r))
 		if err != nil {
-			httpx.Error(w, statusForGatewayError(err), err.Error())
+			writeGatewayError(w, statusForGatewayError(err), err)
 			return
 		}
 		defer resp.Body.Close()
+		if resp.StatusCode >= 400 {
+			responseBody, _ := io.ReadAll(resp.Body)
+			h.gateway.FinalizeStream(r.Context(), principalDTO, model, channel, body, responseBody, estimate, resp.StatusCode, clientIP(r), start)
+			writeGatewayBody(w, resp.StatusCode, responseBody)
+			return
+		}
 		w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
 		if w.Header().Get("Content-Type") == "" {
 			w.Header().Set("Content-Type", "text/event-stream")
@@ -76,16 +82,10 @@ func (h Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 	status, responseBody, err := h.gateway.Chat(r.Context(), principalDTO, body, clientIP(r), sessionID(r))
 	if err != nil {
-		httpx.Error(w, status, err.Error())
+		writeGatewayError(w, status, err)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if !json.Valid(responseBody) {
-		_ = json.NewEncoder(w).Encode(map[string]string{"raw": string(responseBody)})
-		return
-	}
-	_, _ = w.Write(responseBody)
+	writeGatewayBody(w, status, responseBody)
 }
 
 func sessionID(r *http.Request) string {
@@ -97,6 +97,12 @@ func sessionID(r *http.Request) string {
 
 func statusForGatewayError(err error) int {
 	switch {
+	case isUpstreamError(err):
+		var upstreamErr *service.UpstreamError
+		if errors.As(err, &upstreamErr) {
+			return upstreamErr.StatusCode
+		}
+		return http.StatusBadGateway
 	case errors.Is(err, service.ErrInsufficientBalance):
 		return http.StatusPaymentRequired
 	case errors.Is(err, service.ErrRateLimited):
@@ -106,6 +112,39 @@ func statusForGatewayError(err error) int {
 	default:
 		return http.StatusBadGateway
 	}
+}
+
+func isUpstreamError(err error) bool {
+	var upstreamErr *service.UpstreamError
+	return errors.As(err, &upstreamErr)
+}
+
+func writeGatewayError(w http.ResponseWriter, fallbackStatus int, err error) {
+	var upstreamErr *service.UpstreamError
+	if errors.As(err, &upstreamErr) {
+		writeGatewayBody(w, upstreamErr.StatusCode, service.NormalizeUpstreamErrorBody(upstreamErr.StatusCode, upstreamErr.Body))
+		return
+	}
+	if fallbackStatus < 400 {
+		fallbackStatus = statusForGatewayError(err)
+	}
+	httpx.Error(w, fallbackStatus, err.Error())
+}
+
+func writeGatewayBody(w http.ResponseWriter, status int, body []byte) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if !json.Valid(body) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"error": map[string]any{
+				"message":         strings.TrimSpace(string(body)),
+				"type":            "upstream_error",
+				"upstream_status": status,
+			},
+		})
+		return
+	}
+	_, _ = w.Write(body)
 }
 
 func clientIP(r *http.Request) string {

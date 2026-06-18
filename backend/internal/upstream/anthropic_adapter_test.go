@@ -1,6 +1,10 @@
 package upstream
 
 import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -86,5 +90,98 @@ func TestConvertAnthropicStreamKeepsUsageExtractable(t *testing.T) {
 	usage := ExtractStreamUsage(text)
 	if usage.PromptTokens != 13 || usage.CompletionTokens != 5 || usage.TotalTokens != 18 {
 		t.Fatalf("usage not extractable by existing OpenAI parser: %+v\n%s", usage, text)
+	}
+}
+
+func TestStreamAnthropicToOpenAIPreservesRealSSEContent(t *testing.T) {
+	raw := strings.Join([]string{
+		"event: message_start\r",
+		`data: {"type":"message_start","message":{"model":"claude-3-5-sonnet-latest","usage":{"input_tokens":452}}}` + "\r",
+		"\r",
+		"event: content_block_delta\r",
+		`data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"你好，"}}` + "\r",
+		"\r",
+		"event: content_block_delta\r",
+		`data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"这是流式内容。"}}` + "\r",
+		"\r",
+		"event: message_delta\r",
+		`data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":161}}` + "\r",
+		"\r",
+		"event: message_stop\r",
+		`data: {"type":"message_stop"}` + "\r",
+		"\r",
+	}, "\n")
+
+	converted, err := io.ReadAll(StreamAnthropicToOpenAI(io.NopCloser(strings.NewReader(raw))))
+	if err != nil {
+		t.Fatalf("read converted stream: %v", err)
+	}
+	text := string(converted)
+	for _, want := range []string{`"content":"你好，"`, `"content":"这是流式内容。"`, `data: [DONE]`} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("converted stream missing %s: %s", want, text)
+		}
+	}
+	usage := ExtractStreamUsage(text)
+	if usage.PromptTokens != 452 || usage.CompletionTokens != 161 || usage.TotalTokens != 613 {
+		t.Fatalf("usage mismatch: %+v\n%s", usage, text)
+	}
+}
+
+func TestAnthropicErrorToOpenAIPreservesCodeAndMessage(t *testing.T) {
+	got := AnthropicErrorToOpenAI([]byte(`{"code":"INSUFFICIENT_BALANCE","message":"Insufficient account balance"}`))
+	var parsed struct {
+		Error struct {
+			Message string `json:"message"`
+			Type    string `json:"type"`
+			Code    string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(got, &parsed); err != nil {
+		t.Fatalf("unmarshal error payload: %v", err)
+	}
+	if parsed.Error.Message != "Insufficient account balance" {
+		t.Fatalf("message = %q, want preserved upstream message", parsed.Error.Message)
+	}
+	if parsed.Error.Code != "INSUFFICIENT_BALANCE" {
+		t.Fatalf("code = %q, want preserved upstream code", parsed.Error.Code)
+	}
+	if parsed.Error.Type != "upstream_error" {
+		t.Fatalf("type = %q, want upstream_error", parsed.Error.Type)
+	}
+}
+
+func TestAnthropicOpenChatStreamReturnsJSONErrorBeforeSSE(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/messages" {
+			t.Fatalf("path = %s, want /v1/messages", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"code":"INSUFFICIENT_BALANCE","message":"Insufficient account balance"}`))
+	}))
+	defer server.Close()
+
+	raw := []byte(`{"model":"claude-public","messages":[{"role":"user","content":"hi"}],"stream":true}`)
+	resp, err := (AnthropicAdapter{}).OpenChatStream(t.Context(), server.URL, "test-key", 5, raw, "claude-upstream")
+	if err != nil {
+		t.Fatalf("OpenChatStream failed: %v", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", resp.StatusCode)
+	}
+	if !strings.Contains(resp.Header.Get("Content-Type"), "application/json") {
+		t.Fatalf("content-type = %q, want application/json", resp.Header.Get("Content-Type"))
+	}
+	text := string(body)
+	for _, want := range []string{`"type":"upstream_error"`, `"code":"INSUFFICIENT_BALANCE"`, `"message":"Insufficient account balance"`} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("body missing %s: %s", want, text)
+		}
 	}
 }

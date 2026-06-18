@@ -12,9 +12,6 @@ import (
 
 func TestShouldRetryStatus(t *testing.T) {
 	retryStatuses := []int{
-		http.StatusUnauthorized,
-		http.StatusForbidden,
-		http.StatusTooManyRequests,
 		http.StatusBadGateway,
 		http.StatusServiceUnavailable,
 	}
@@ -27,13 +24,41 @@ func TestShouldRetryStatus(t *testing.T) {
 	nonRetryStatuses := []int{
 		http.StatusOK,
 		http.StatusBadRequest,
+		http.StatusUnauthorized,
+		http.StatusForbidden,
 		http.StatusPaymentRequired,
 		http.StatusNotFound,
+		http.StatusTooManyRequests,
 	}
 	for _, status := range nonRetryStatuses {
 		if shouldRetryStatus(status) {
 			t.Fatalf("status %d should not retry", status)
 		}
+	}
+}
+
+func TestNormalizeUpstreamErrorBodyKeepsJSON(t *testing.T) {
+	body := []byte(`{"code":"INSUFFICIENT_BALANCE","message":"Insufficient account balance"}`)
+	got := NormalizeUpstreamErrorBody(http.StatusForbidden, body)
+	if string(got) != string(body) {
+		t.Fatalf("body = %s, want original JSON", got)
+	}
+}
+
+func TestNormalizeUpstreamErrorBodyWrapsText(t *testing.T) {
+	got := NormalizeUpstreamErrorBody(http.StatusForbidden, []byte("Forbidden"))
+	var parsed struct {
+		Error struct {
+			Message        string `json:"message"`
+			Type           string `json:"type"`
+			UpstreamStatus int    `json:"upstream_status"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(got, &parsed); err != nil {
+		t.Fatalf("unmarshal normalized body: %v", err)
+	}
+	if parsed.Error.Message != "Forbidden" || parsed.Error.Type != "upstream_error" || parsed.Error.UpstreamStatus != http.StatusForbidden {
+		t.Fatalf("unexpected normalized body: %s", got)
 	}
 }
 
