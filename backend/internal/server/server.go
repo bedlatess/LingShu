@@ -176,6 +176,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 		r.Use(middleware.APIKeyAuth(apiKeyRepo))
 		r.Get("/models", gatewayHandler.Models)
 		r.Post("/chat/completions", gatewayHandler.ChatCompletions)
+		r.Post("/messages", gatewayHandler.Messages)
 		r.Post("/embeddings", gatewayHandler.Embeddings)
 	})
 	return r
