@@ -101,7 +101,7 @@ func (AnthropicAdapter) OpenChatStream(ctx context.Context, baseURL, apiKey stri
 
 func (AnthropicAdapter) ListModels(ctx context.Context, baseURL, apiKey string) ([]ProviderModel, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(baseURL, "/")+"/models", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, anthropicURL(baseURL, "/models"), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -115,6 +115,9 @@ func (AnthropicAdapter) ListModels(ctx context.Context, baseURL, apiKey string) 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil || resp.StatusCode >= 400 {
 		return anthropicPresetModels(), nil
+	}
+	if err := ensureJSONResponse(resp, body); err != nil {
+		return nil, err
 	}
 	var parsed struct {
 		Data []struct {
@@ -145,7 +148,7 @@ func doAnthropic(ctx context.Context, baseURL, apiKey string, timeoutSeconds int
 		timeout = 120 * time.Second
 	}
 	client := &http.Client{Timeout: timeout}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(baseURL, "/")+"/messages", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, anthropicURL(baseURL, "/messages"), bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +156,14 @@ func doAnthropic(ctx context.Context, baseURL, apiKey string, timeoutSeconds int
 	req.Header.Set("x-api-key", apiKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
 	return client.Do(req)
+}
+
+func anthropicURL(baseURL, path string) string {
+	trimmed := strings.TrimRight(baseURL, "/")
+	if strings.HasSuffix(trimmed, "/v1") {
+		return trimmed + path
+	}
+	return trimmed + "/v1" + path
 }
 
 func anthropicPresetModels() []ProviderModel {

@@ -52,6 +52,9 @@ func (OpenAIAdapter) ListModels(ctx context.Context, baseURL, apiKey string) ([]
 	if resp.StatusCode >= 400 {
 		return nil, &ProviderError{StatusCode: resp.StatusCode, Body: string(body)}
 	}
+	if err := ensureJSONResponse(resp, body); err != nil {
+		return nil, err
+	}
 	var parsed struct {
 		Data []struct {
 			ID      string `json:"id"`
@@ -107,6 +110,32 @@ func (e *ProviderError) Error() string {
 		return http.StatusText(e.StatusCode)
 	}
 	return strings.TrimSpace(e.Body)
+}
+
+type ProviderContentTypeError struct {
+	StatusCode  int
+	ContentType string
+	Body        string
+}
+
+func (e *ProviderContentTypeError) Error() string {
+	return "上游返回 " + firstNonEmpty(e.ContentType, "空") + " 类型而非 JSON，请检查 base_url 是否正确；HTTP " + http.StatusText(e.StatusCode) + "，body: " + truncateForError(e.Body, 200)
+}
+
+func ensureJSONResponse(resp *http.Response, body []byte) error {
+	contentType := resp.Header.Get("Content-Type")
+	if strings.Contains(strings.ToLower(contentType), "application/json") {
+		return nil
+	}
+	return &ProviderContentTypeError{StatusCode: resp.StatusCode, ContentType: contentType, Body: string(body)}
+}
+
+func truncateForError(value string, limit int) string {
+	value = strings.TrimSpace(value)
+	if len(value) <= limit {
+		return value
+	}
+	return value[:limit]
 }
 
 func inferModelType(id string) string {
