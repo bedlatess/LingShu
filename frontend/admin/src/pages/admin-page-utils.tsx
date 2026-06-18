@@ -25,12 +25,18 @@ export function errText(err: unknown) {
   return err instanceof Error ? err.message : "未知错误";
 }
 
+const pendingWrites = new Set<string>();
+
 export async function runWrite(action: () => Promise<void>, failPrefix = "操作失败") {
+  if (pendingWrites.has(failPrefix)) return;
+  pendingWrites.add(failPrefix);
   try {
     await action();
   } catch (err) {
-    message.error(`${failPrefix}: ${errText(err)}`);
+    message.error({ content: `${failPrefix}: ${errText(err)}`, key: `write-${failPrefix}` });
     throw err;
+  } finally {
+    pendingWrites.delete(failPrefix);
   }
 }
 
@@ -85,6 +91,14 @@ export async function copyText(text: string): Promise<boolean> {
 export function fmtMoney(v?: string | number) {
   const n = Number(v ?? 0);
   return Number.isFinite(n) ? n.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : "0";
+}
+
+export function formatDateMinute(value?: string | Date | null, empty = "-") {
+  if (!value) return empty;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return empty;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export function MiniBars({ data }: { data: { label: string; value: number }[] }) {

@@ -20,15 +20,29 @@ export function DashboardPage() {
   const [logs, setLogs] = React.useState<UserGatewayLog[]>([]);
   const [loading, setLoading] = React.useState(true);
 
-  React.useEffect(() => {
-    Promise.all([api.userDashboard(), api.userDailyStats(), api.userLogs()])
+  const refresh = React.useCallback(() => {
+    return Promise.all([api.userDashboard(), api.userDailyStats(), api.userLogs()])
       .then(([dash, dailyResult, logResult]) => {
         setDashboard(dash);
         setDaily(dailyResult.items);
         setLogs(logResult.items);
-      })
-      .finally(() => setLoading(false));
+      });
   }, [api]);
+
+  React.useEffect(() => {
+    refresh().finally(() => setLoading(false));
+  }, [refresh]);
+
+  React.useEffect(() => {
+    const onFocus = () => refresh().catch(() => undefined);
+    const onBalanceChanged = () => refresh().catch(() => undefined);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("lingshu:balance-changed", onBalanceChanged);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("lingshu:balance-changed", onBalanceChanged);
+    };
+  }, [refresh]);
 
   return (
     <div className="page-grid">

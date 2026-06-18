@@ -111,6 +111,7 @@ export interface ChannelDetectResult {
   format: string;
   normalized_base_url: string;
   sample_models: string[];
+  probe_url?: string;
 }
 
 export interface ProviderModel {
@@ -333,10 +334,6 @@ export interface UserModelPrice {
   type: string;
   group: string;
   billing_mode: string;
-  input_price_per_1k: string;
-  output_price_per_1k: string;
-  price_per_call: string;
-  rate_multiplier: string;
   input_unit_price: string;
   output_unit_price: string;
   call_unit_price: string;

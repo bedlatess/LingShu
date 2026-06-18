@@ -36,14 +36,15 @@ func (h ChannelHandler) Presets(w http.ResponseWriter, r *http.Request) {
 
 func (h ChannelHandler) Detect(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		BaseURL string `json:"base_url"`
-		APIKey  string `json:"api_key"`
+		BaseURL      string `json:"base_url"`
+		APIKey       string `json:"api_key"`
+		ProviderType string `json:"provider_type"`
 	}
 	if err := httpx.Decode(r, &input); err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid json")
 		return
 	}
-	result, err := upstream.DetectProtocol(r.Context(), input.BaseURL, input.APIKey)
+	result, err := upstream.DetectProtocolWithHint(r.Context(), input.BaseURL, input.APIKey, input.ProviderType)
 	if err != nil {
 		httpx.Error(w, http.StatusBadGateway, err.Error())
 		return

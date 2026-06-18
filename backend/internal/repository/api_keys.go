@@ -166,7 +166,7 @@ func (r APIKeyRepository) UpdateForUser(ctx context.Context, params UpdateAPIKey
 
 func (r APIKeyRepository) DeleteForUser(ctx context.Context, id, userID string) error {
 	_ = r.InvalidateByID(ctx, id)
-	tag, err := r.db.Exec(ctx, "DELETE FROM api_keys WHERE id=$1 AND user_id=$2", id, userID)
+	tag, err := r.db.Exec(ctx, "UPDATE api_keys SET deleted_at=now(), status='disabled', updated_at=now() WHERE id=$1 AND user_id=$2 AND deleted_at IS NULL", id, userID)
 	if err != nil {
 		return err
 	}

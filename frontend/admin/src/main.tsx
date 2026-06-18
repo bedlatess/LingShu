@@ -1,12 +1,10 @@
 import React, { Suspense, useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
-import { AuditOutlined, DashboardOutlined, KeyOutlined, SettingOutlined, TeamOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, ConfigProvider, Drawer, Form, Input, Layout, Menu, Modal, Select, Space, Spin, Typography, message } from "antd";
+import { Alert, Button, Card, Drawer, Form, Input, Layout, Modal, Select, Space, Spin, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, Link, Navigate, Route, Routes } from "react-router-dom";
 import {
   createAPI,
-  designTokens,
   perKToM,
   type APIKey,
   type AdminDashboard,
@@ -21,11 +19,13 @@ import {
   type SystemSetting,
   type User
 } from "@lingshu/shared";
-import { errText, normalizeModelPayload, providerOptions, type Pager, runWrite } from "./pages/admin-page-utils";
+import { AdminMenu, Theme } from "./admin-shell";
+import { errText, formatDateMinute, normalizeModelPayload, providerOptions, type Pager, runWrite } from "./pages/admin-page-utils";
 import { ModelForm } from "./pages/model-form";
 import "antd/dist/reset.css";
 
 const { Header, Sider, Content } = Layout;
+message.config({ maxCount: 1 });
 
 const AdminDashboardPage = React.lazy(() => import("./pages/admin-dashboard").then((module) => ({ default: module.AdminDashboardPage })));
 const UsersPage = React.lazy(() => import("./pages/users").then((module) => ({ default: module.UsersPage })));
@@ -41,22 +41,11 @@ const ReportsPage = React.lazy(() => import("./pages/reports").then((module) => 
 const SettingsPage = React.lazy(() => import("./pages/settings").then((module) => ({ default: module.SettingsPage })));
 const AuditPage = React.lazy(() => import("./pages/audit").then((module) => ({ default: module.AuditPage })));
 
-const adminMenuItems = [
-  { key: "/dashboard", icon: <DashboardOutlined />, label: "概览" },
-  { key: "/users", icon: <TeamOutlined />, label: "用户管理" },
-  { key: "/api-keys", icon: <KeyOutlined />, label: "API 密钥" },
-  { key: "/models", icon: <SettingOutlined />, label: "模型管理" },
-  { key: "/channels", icon: <SettingOutlined />, label: "渠道管理" },
-  { key: "/announcements", icon: <SettingOutlined />, label: "公告管理" },
-  { key: "/redeem", icon: <KeyOutlined />, label: "兑换码" },
-  { key: "/reports", icon: <DashboardOutlined />, label: "数据报表" },
-  { key: "/settings", icon: <SettingOutlined />, label: "系统设置" },
-  { key: "/audit", icon: <AuditOutlined />, label: "审计日志" }
-];
-
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem("lingshu_admin_token") ?? "");
   const [me, setMe] = useState<User | null>(null);
+  const [authStatus, setAuthStatus] = useState<"checking" | "authenticated" | "anonymous">(() => (localStorage.getItem("lingshu_admin_token") ? "checking" : "anonymous"));
+  const [bootError, setBootError] = useState("");
   const [error, setError] = useState("");
   const [users, setUsers] = useState<User[]>([]);
   const [apiKeys, setAPIKeys] = useState<APIKey[]>([]);
@@ -115,6 +104,7 @@ function App() {
       api.cleanupHistory(10)
     ]);
     setMe(current);
+    setAuthStatus("authenticated");
     setUsers(userList.items);
     setAuditCount(audit.count);
     setAPIKeys(keyList.items);
@@ -146,10 +136,30 @@ function App() {
       localStorage.removeItem("lingshu_admin_token");
       setToken("");
       setMe(null);
-      message.warning("登录已过期，请重新登录");
+      setBootError("");
+      setAuthStatus("anonymous");
+      message.warning({ content: "登录已过期，请重新登录", key: "admin-auth" });
     };
     window.addEventListener("lingshu:unauthorized", onUnauthorized as EventListener);
-    refresh().catch((err) => setError(errText(err)));
+    if (!token) {
+      setAuthStatus("anonymous");
+      return () => window.removeEventListener("lingshu:unauthorized", onUnauthorized as EventListener);
+    }
+    setAuthStatus((prev) => (prev === "authenticated" ? prev : "checking"));
+    refresh().catch((err) => {
+      const text = errText(err);
+      setError(text);
+      if (text.includes("登录已过期") || text.includes("没有权限")) {
+        localStorage.removeItem("lingshu_admin_token");
+        setToken("");
+        setMe(null);
+        setBootError("");
+        setAuthStatus("anonymous");
+      } else {
+        setBootError(text);
+        setAuthStatus(token ? "checking" : "anonymous");
+      }
+    });
     return () => window.removeEventListener("lingshu:unauthorized", onUnauthorized as EventListener);
   }, [token, usersPager.page, usersPager.limit, keysPager.page, keysPager.limit, modelsPager.page, modelsPager.limit, channelsPager.page, channelsPager.limit, announcementsPager.page, announcementsPager.limit, redeemPager.page, redeemPager.limit, logsPager.page, logsPager.limit, ledgerPager.page, ledgerPager.limit, settingsPager.page, settingsPager.limit, auditPager.page, auditPager.limit]);
 
@@ -164,11 +174,13 @@ function App() {
       localStorage.setItem("lingshu_admin_token", result.token);
       setToken(result.token);
       setMe(result.user);
-      message.success("登录成功");
+      setBootError("");
+      setAuthStatus("authenticated");
+      message.success({ content: "登录成功", key: "admin-login" });
     } catch (err) {
       const text = errText(err);
       setError(text);
-      message.error(`登录失败: ${text}`);
+      message.error({ content: `登录失败: ${text}`, key: "admin-login" });
     }
   }
 
@@ -336,7 +348,7 @@ function App() {
     { title: "权重", dataIndex: "weight" },
     { title: "已绑模型", dataIndex: "bound_count", render: (_, channel) => <Link to={`/channels/${channel.id}`}>{channel.bound_count ?? 0}</Link> },
     { title: "最近延迟(ms)", dataIndex: "last_latency_ms", render: (value) => value ?? 0 },
-    { title: "最近成功", dataIndex: "last_success_at", render: (value) => value ?? "-" },
+    { title: "最近成功", dataIndex: "last_success_at", render: (value) => formatDateMinute(value) },
     { title: "状态", dataIndex: "status" },
     { title: "健康", dataIndex: "health" },
     {
@@ -425,7 +437,31 @@ function App() {
     { title: "时间", dataIndex: "created_at" }
   ];
 
-  if (!token || !me) {
+  if (authStatus === "checking" && token) {
+    return (
+      <Theme>
+        <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#f6f8fb" }}>
+          <Space direction="vertical" align="center">
+            <Spin />
+            <Typography.Text type="secondary">正在校验登录状态...</Typography.Text>
+            {bootError ? <Typography.Text type="secondary">{bootError}</Typography.Text> : null}
+            {bootError ? (
+              <Button
+                onClick={() => {
+                  setBootError("");
+                  refresh().catch((err) => setBootError(errText(err)));
+                }}
+              >
+                重试
+              </Button>
+            ) : null}
+          </Space>
+        </div>
+      </Theme>
+    );
+  }
+
+  if (!token || authStatus === "anonymous" || !me) {
     return (
       <Theme>
         <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#f6f8fb" }}>
@@ -464,6 +500,8 @@ function App() {
                   localStorage.removeItem("lingshu_admin_token");
                   setToken("");
                   setMe(null);
+                  setBootError("");
+                  setAuthStatus("anonymous");
                 }}
               >
                 退出
@@ -539,22 +577,6 @@ function App() {
         </Form>
       </Drawer>
     </Theme>
-  );
-}
-
-function AdminMenu() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const selectedKey = location.pathname.startsWith("/users/") ? "/users" : location.pathname === "/" ? "/dashboard" : location.pathname;
-  return <Menu theme="dark" mode="inline" selectedKeys={[selectedKey]} items={adminMenuItems} onClick={({ key }) => navigate(key)} />;
-}
-
-
-function Theme({ children }: { children: React.ReactNode }) {
-  return (
-    <ConfigProvider theme={{ token: { colorPrimary: designTokens.colors.brand, borderRadius: 8 } }}>
-      {children}
-    </ConfigProvider>
   );
 }
 

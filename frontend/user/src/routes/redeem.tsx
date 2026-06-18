@@ -17,6 +17,7 @@ export function RedeemPage() {
   const [code, setCode] = React.useState("");
   const [message, setMessage] = React.useState("");
   const [ledger, setLedger] = React.useState<UserLedgerRecord[]>([]);
+  const [redeeming, setRedeeming] = React.useState(false);
 
   async function refresh() {
     const result = await api.userLedger();
@@ -29,16 +30,21 @@ export function RedeemPage() {
 
   async function redeem(event: React.FormEvent) {
     event.preventDefault();
+    if (redeeming) return;
     setMessage("");
+    setRedeeming(true);
     try {
       const result = await api.redeem(code);
       setCode("");
       setMessage(`兑换成功，入账 ${formatMoney(result.amount)}`);
-      toast.success(`兑换成功，入账 ${formatMoney(result.amount)}`);
+      toast.success(`兑换成功，入账 ${formatMoney(result.amount)}`, { id: "redeem" });
       await Promise.all([refresh(), refreshMe()]);
+      window.dispatchEvent(new CustomEvent("lingshu:balance-changed"));
     } catch (err) {
       const message = err instanceof Error ? err.message : "兑换失败";
-      toast.error(`兑换失败：${message}`);
+      toast.error(`兑换失败：${message}`, { id: "redeem" });
+    } finally {
+      setRedeeming(false);
     }
   }
 
@@ -52,7 +58,7 @@ export function RedeemPage() {
             <h2 className="text-2xl font-semibold">输入兑换码</h2>
             <Input value={code} onChange={(event) => setCode(event.target.value)} placeholder="LS-XXXX-XXXX" required />
             {message ? <p className="rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">{message}</p> : null}
-            <Button type="submit"><Gift className="h-4 w-4" />兑换</Button>
+            <Button type="submit" disabled={redeeming}><Gift className="h-4 w-4" />{redeeming ? "兑换中" : "兑换"}</Button>
           </form>
           <div className="grid content-start gap-4 rounded-lg border border-white/10 bg-white/[0.035] p-5">
             <div>

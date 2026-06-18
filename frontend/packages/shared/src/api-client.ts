@@ -77,7 +77,7 @@ export function createAPI(token?: string) {
         throw new Error("请求过于频繁，请稍后再试");
       }
       const body = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(body.error ?? response.statusText);
+      throw new Error(errorMessageFromBody(body, response.statusText));
     }
     return response.json();
   }
@@ -176,10 +176,10 @@ export function createAPI(token?: string) {
         body: JSON.stringify({ before_days })
       }),
     listChannelPresets: () => request<{ items: ChannelPreset[] }>("/api/admin/channel-presets"),
-    detectChannel: (base_url: string, api_key: string) =>
+    detectChannel: (base_url: string, api_key: string, provider_type?: string) =>
       request<ChannelDetectResult>("/api/admin/channels/detect", {
         method: "POST",
-        body: JSON.stringify({ base_url, api_key })
+        body: JSON.stringify({ base_url, api_key, provider_type })
       }),
     listChannels: (page?: number, limit?: number) => request<PaginatedResponse<Channel>>(withQuery("/api/admin/channels", { page, limit })),
     getChannelDetail: (id: string) => request<ChannelDetail>(`/api/admin/channels/${id}`),
@@ -314,6 +314,21 @@ export function createAPI(token?: string) {
     userDailyStats: () => request<{ items: DailyStat[] }>("/api/user/usage/stats/daily?days=7"),
     userModelStats: () => request<{ items: ModelStat[] }>("/api/user/usage/stats/models")
   };
+}
+
+function errorMessageFromBody(body: unknown, fallback: string) {
+  if (!body || typeof body !== "object") return fallback;
+  const record = body as Record<string, unknown>;
+  const error = record.error;
+  if (typeof error === "string" && error.trim()) return error;
+  if (error && typeof error === "object") {
+    const nested = error as Record<string, unknown>;
+    const code = typeof nested.code === "string" ? nested.code : "";
+    const message = typeof nested.message === "string" ? nested.message : "";
+    return [code, message].filter(Boolean).join("：") || fallback;
+  }
+  if (typeof record.message === "string" && record.message.trim()) return record.message;
+  return fallback;
 }
 
 function isRetryableError(err: unknown) {

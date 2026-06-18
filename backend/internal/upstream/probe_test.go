@@ -75,6 +75,32 @@ func TestDetectProtocolAnthropic(t *testing.T) {
 	}
 }
 
+func TestDetectProtocolWithAnthropicHintPrefersAnthropicProbe(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/models":
+			if got := r.Header.Get("x-api-key"); got != "test-key" {
+				t.Fatalf("unexpected api key: %s", got)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"data":[{"id":"claude-hint"}]}`))
+		case "/models":
+			t.Fatalf("anthropic hint should not probe OpenAI /models first")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	result, err := DetectProtocolWithHint(context.Background(), server.URL, "test-key", "anthropic")
+	if err != nil {
+		t.Fatalf("DetectProtocolWithHint failed: %v", err)
+	}
+	if result.Format != "anthropic" || result.NormalizedBase != server.URL || result.ProbeURL != server.URL+"/v1/models" {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+}
+
 func TestProbeAnthropicStrictNoPresetFallback(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":{"message":"bad key"}}`, http.StatusUnauthorized)

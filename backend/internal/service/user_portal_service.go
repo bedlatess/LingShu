@@ -20,10 +20,10 @@ type UserModelPrice struct {
 	Type             string `json:"type"`
 	Group            string `json:"group"`
 	BillingMode      string `json:"billing_mode"`
-	InputPricePer1K  string `json:"input_price_per_1k"`
-	OutputPricePer1K string `json:"output_price_per_1k"`
-	PricePerCall     string `json:"price_per_call"`
-	RateMultiplier   string `json:"rate_multiplier"`
+	InputPricePer1K  string `json:"-"`
+	OutputPricePer1K string `json:"-"`
+	PricePerCall     string `json:"-"`
+	RateMultiplier   string `json:"-"`
 	InputUnitPrice   string `json:"input_unit_price"`
 	OutputUnitPrice  string `json:"output_unit_price"`
 	CallUnitPrice    string `json:"call_unit_price"`

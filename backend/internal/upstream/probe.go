@@ -70,31 +70,54 @@ type DetectResult struct {
 	Format         string   `json:"format"`
 	NormalizedBase string   `json:"normalized_base_url"`
 	SampleModels   []string `json:"sample_models"`
+	ProbeURL       string   `json:"probe_url,omitempty"`
 }
 
 func DetectProtocol(ctx context.Context, baseURL, apiKey string) (DetectResult, error) {
+	return DetectProtocolWithHint(ctx, baseURL, apiKey, "")
+}
+
+func DetectProtocolWithHint(ctx context.Context, baseURL, apiKey, providerType string) (DetectResult, error) {
 	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	lower := strings.ToLower(trimmed)
 	if trimmed == "" || strings.TrimSpace(apiKey) == "" {
 		return DetectResult{}, errors.New("base_url 和 api_key 不能为空")
 	}
+	hint := strings.ToLower(strings.TrimSpace(providerType))
+
+	if hint == "anthropic" {
+		if models, _, err := ProbeAnthropic(ctx, trimmed, apiKey); err == nil {
+			return DetectResult{Format: "anthropic", NormalizedBase: trimmed, SampleModels: models, ProbeURL: anthropicURL(trimmed, "/models")}, nil
+		}
+	}
+	if hint == "openai" {
+		if models, _, err := ProbeOpenAI(ctx, trimmed, apiKey); err == nil {
+			return DetectResult{Format: "openai", NormalizedBase: trimmed, SampleModels: models, ProbeURL: trimmed + "/models"}, nil
+		}
+		if !strings.Contains(lower, "/v") {
+			withV1 := trimmed + "/v1"
+			if models, _, err := ProbeOpenAI(ctx, withV1, apiKey); err == nil {
+				return DetectResult{Format: "openai", NormalizedBase: withV1, SampleModels: models, ProbeURL: withV1 + "/models"}, nil
+			}
+		}
+	}
 
 	if strings.Contains(lower, "anthropic") || strings.Contains(lower, "claude") {
 		if models, _, err := ProbeAnthropic(ctx, trimmed, apiKey); err == nil {
-			return DetectResult{Format: "anthropic", NormalizedBase: trimmed, SampleModels: models}, nil
+			return DetectResult{Format: "anthropic", NormalizedBase: trimmed, SampleModels: models, ProbeURL: anthropicURL(trimmed, "/models")}, nil
 		}
 	}
 	if models, _, err := ProbeOpenAI(ctx, trimmed, apiKey); err == nil {
-		return DetectResult{Format: "openai", NormalizedBase: trimmed, SampleModels: models}, nil
+		return DetectResult{Format: "openai", NormalizedBase: trimmed, SampleModels: models, ProbeURL: trimmed + "/models"}, nil
 	}
 	if !strings.Contains(lower, "/v") {
 		withV1 := trimmed + "/v1"
 		if models, _, err := ProbeOpenAI(ctx, withV1, apiKey); err == nil {
-			return DetectResult{Format: "openai", NormalizedBase: withV1, SampleModels: models}, nil
+			return DetectResult{Format: "openai", NormalizedBase: withV1, SampleModels: models, ProbeURL: withV1 + "/models"}, nil
 		}
 	}
 	if models, _, err := ProbeAnthropic(ctx, trimmed, apiKey); err == nil {
-		return DetectResult{Format: "anthropic", NormalizedBase: trimmed, SampleModels: models}, nil
+		return DetectResult{Format: "anthropic", NormalizedBase: trimmed, SampleModels: models, ProbeURL: anthropicURL(trimmed, "/models")}, nil
 	}
 	return DetectResult{}, errors.New("无法识别上游格式：OpenAI /models 与 Anthropic /v1/models 均探测失败，请检查 base_url 与密钥")
 }

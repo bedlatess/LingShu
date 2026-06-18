@@ -13,7 +13,7 @@ import {
   type ProviderModel
 } from "@lingshu/shared";
 
-import { errText, metricCards, providerOptions, type Pager, runWrite, tablePagination } from "./admin-page-utils";
+import { errText, formatDateMinute, metricCards, providerOptions, type Pager, runWrite, tablePagination } from "./admin-page-utils";
 
 type AdminAPI = ReturnType<typeof createAPI>;
 
@@ -50,6 +50,7 @@ export function ChannelsPage({
   const [status, setStatus] = useState<string>();
   const [health, setHealth] = useState<string>();
   const [presets, setPresets] = useState<ChannelPreset[]>([]);
+  const [detectInfo, setDetectInfo] = useState<{ saved: string; probe?: string } | null>(null);
 
   useEffect(() => {
     api.listChannelPresets().then((result) => setPresets(result.items)).catch((err) => message.error(`加载供应商预设失败: ${errText(err)}`));
@@ -74,11 +75,16 @@ export function ChannelsPage({
       return;
     }
     try {
-      const result = await api.detectChannel(base, key);
+      const providerType = form.getFieldValue("provider_type");
+      const result = await api.detectChannel(base, key, providerType);
       form.setFieldsValue({ provider_type: result.format, base_url: result.normalized_base_url });
-      message.success(`已识别为 ${result.format}，样例模型 ${result.sample_models.slice(0, 3).join(", ") || "无"}`);
+      setDetectInfo({ saved: result.normalized_base_url, probe: result.probe_url });
+      message.success({
+        content: `已识别为 ${result.format}，样例模型 ${result.sample_models.slice(0, 3).join(", ") || "无"}`,
+        key: "channel-detect"
+      });
     } catch (err) {
-      message.error(`检测失败: ${errText(err)}`);
+      message.error({ content: `检测失败: ${errText(err)}`, key: "channel-detect" });
     }
   }
 
@@ -153,6 +159,20 @@ export function ChannelsPage({
               <Select style={{ width: 120 }} options={[{ value: "enabled", label: "启用" }, { value: "disabled", label: "停用" }]} />
             </Form.Item>
           </Space>
+          {detectInfo ? (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="检测结果"
+              description={
+                <Space direction="vertical" size={2}>
+                  <Typography.Text>保存地址：{detectInfo.saved}</Typography.Text>
+                  <Typography.Text>实际探测地址：{detectInfo.probe ?? "未返回"}</Typography.Text>
+                </Space>
+              }
+            />
+          ) : null}
           <Button type="primary" htmlType="submit">创建渠道</Button>
         </Form>
       </Card>
@@ -334,7 +354,7 @@ export function ChannelDetailPage({ api }: { api: AdminAPI }) {
       <Card title="最近测试">
         <Space wrap>
           <Tag color={detail.channel.health === "healthy" ? "green" : "red"}>{detail.channel.health}</Tag>
-          <Typography.Text>最近成功：{detail.channel.last_success_at ?? "暂无"}</Typography.Text>
+          <Typography.Text>最近成功：{formatDateMinute(detail.channel.last_success_at, "暂无")}</Typography.Text>
           <Typography.Text>最近延迟：{detail.channel.last_latency_ms ?? 0} ms</Typography.Text>
         </Space>
       </Card>

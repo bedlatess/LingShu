@@ -1,11 +1,11 @@
 import React from "react";
 import { createAPI } from "@lingshu/shared";
 import type { User } from "@lingshu/shared/user-types";
-import { toast } from "sonner";
 
 type AuthContextValue = {
   token: string;
   user: User | null;
+  authStatus: "checking" | "authenticated" | "anonymous";
   api: ReturnType<typeof createAPI>;
   login: (login: string, password: string) => Promise<void>;
   logout: () => void;
@@ -17,6 +17,7 @@ const AuthContext = React.createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = React.useState(() => localStorage.getItem("lingshu_user_token") ?? "");
   const [user, setUser] = React.useState<User | null>(null);
+  const [authStatus, setAuthStatus] = React.useState<"checking" | "authenticated" | "anonymous">(() => (localStorage.getItem("lingshu_user_token") ? "checking" : "anonymous"));
   const api = React.useMemo(() => createAPI(token), [token]);
 
   async function login(loginName: string, password: string) {
@@ -28,10 +29,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem("lingshu_user_token", result.token);
       setToken(result.token);
       setUser(result.user);
-      toast.success("登录成功");
+      setAuthStatus("authenticated");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "登录失败";
-      toast.error(`登录失败：${message}`);
       throw err;
     }
   }
@@ -40,10 +39,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("lingshu_user_token");
     setToken("");
     setUser(null);
+    setAuthStatus("anonymous");
   }
 
   async function refreshMe() {
-    if (!token) return;
+    if (!token) {
+      setAuthStatus("anonymous");
+      return;
+    }
     const me = await api.me();
     if (me.role !== "user") {
       logout();
@@ -51,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error("当前账号不是普通用户");
     }
     setUser(me);
+    setAuthStatus("authenticated");
   }
 
   React.useEffect(() => {
@@ -59,11 +63,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.location.replace("/login");
     };
     window.addEventListener("lingshu:unauthorized", onUnauthorized as EventListener);
-    refreshMe().catch(() => logout());
+    if (!token) {
+      setAuthStatus("anonymous");
+      return () => window.removeEventListener("lingshu:unauthorized", onUnauthorized as EventListener);
+    }
+    setAuthStatus((prev) => (prev === "authenticated" ? prev : "checking"));
+    refreshMe().catch((err) => {
+      const message = err instanceof Error ? err.message : "";
+      if (message.includes("登录已过期") || message.includes("没有权限")) {
+        logout();
+      } else {
+        setAuthStatus(user ? "authenticated" : "checking");
+      }
+    });
     return () => window.removeEventListener("lingshu:unauthorized", onUnauthorized as EventListener);
   }, [token]);
 
-  return <AuthContext.Provider value={{ token, user, api, login, logout, refreshMe }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ token, user, authStatus, api, login, logout, refreshMe }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

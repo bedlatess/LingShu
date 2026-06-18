@@ -19,6 +19,8 @@ export function ApiKeysPage() {
   const [name, setName] = React.useState("");
   const [plaintext, setPlaintext] = React.useState("");
   const [copied, setCopied] = React.useState(false);
+  const [busyID, setBusyID] = React.useState<string | null>(null);
+  const [creating, setCreating] = React.useState(false);
 
   async function refresh() {
     const result = await api.userAPIKeys();
@@ -31,15 +33,19 @@ export function ApiKeysPage() {
 
   async function createKey(event: React.FormEvent) {
     event.preventDefault();
+    if (creating) return;
+    setCreating(true);
     try {
       const result = await api.createUserAPIKey({ name });
       setPlaintext(result.plaintext);
       setName("");
-      toast.success("API 密钥已创建");
+      toast.success("API 密钥已创建", { id: "api-key-create" });
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "创建失败";
-      toast.error(`创建失败：${message}`);
+      toast.error(`创建失败：${message}`, { id: "api-key-create" });
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -47,56 +53,75 @@ export function ApiKeysPage() {
     const ok = await copyText(plaintext);
     if (ok) {
       setCopied(true);
-      toast.success("已复制到剪贴板");
+      toast.success("已复制到剪贴板", { id: "api-key-copy" });
       setTimeout(() => setCopied(false), 1500);
     } else {
-      toast.error("复制失败，请手动选择复制");
+      toast.error("复制失败，请手动选择复制", { id: "api-key-copy" });
     }
   }
 
   async function disableKey(id: string) {
+    if (busyID) return;
+    setBusyID(id);
     try {
       await api.updateUserAPIKey(id, { status: "disabled" });
-      toast.success("已停用");
+      toast.success("已停用", { id: `api-key-${id}` });
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "操作失败";
-      toast.error(`操作失败：${message}`);
+      toast.error(`操作失败：${message}`, { id: `api-key-${id}` });
+    } finally {
+      setBusyID(null);
     }
   }
 
   async function renameKey(id: string, currentName: string) {
     const nextName = window.prompt("请输入新的密钥名称", currentName);
     if (!nextName || nextName === currentName) return;
+    if (busyID) return;
+    setBusyID(id);
     try {
       await api.updateUserAPIKey(id, { name: nextName });
-      toast.success("API 密钥已重命名");
+      toast.success("API 密钥已重命名", { id: `api-key-${id}` });
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "操作失败";
-      toast.error(`操作失败：${message}`);
+      toast.error(`操作失败：${message}`, { id: `api-key-${id}` });
+    } finally {
+      setBusyID(null);
     }
   }
 
   async function enableKey(id: string) {
+    if (busyID) return;
+    setBusyID(id);
     try {
       await api.updateUserAPIKey(id, { status: "active" });
-      toast.success("已重新启用");
+      toast.success("已重新启用", { id: `api-key-${id}` });
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "操作失败";
-      toast.error(`操作失败：${message}`);
+      toast.error(`操作失败：${message}`, { id: `api-key-${id}` });
+    } finally {
+      setBusyID(null);
     }
   }
 
   async function deleteKey(id: string) {
+    if (busyID) return;
+    setBusyID(id);
+    const previous = items;
     try {
       await api.deleteUserAPIKey(id);
-      toast.success("已删除");
+      setItems((current) => current.filter((item) => item.id !== id));
+      toast.success("已删除", { id: `api-key-${id}` });
       await refresh();
     } catch (err) {
+      setItems(previous);
       const message = err instanceof Error ? err.message : "删除失败";
-      toast.error(`删除失败：${message}`);
+      toast.error(`删除失败：${message}`, { id: `api-key-${id}` });
+    } finally {
+      setBusyID(null);
     }
   }
 
@@ -123,7 +148,7 @@ export function ApiKeysPage() {
         <CardContent>
           <form className="flex flex-col gap-3 sm:flex-row" onSubmit={createKey}>
             <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="例如：生产环境" required />
-            <Button type="submit"><Plus className="h-4 w-4" />创建</Button>
+            <Button type="submit" disabled={creating}><Plus className="h-4 w-4" />{creating ? "创建中" : "创建"}</Button>
           </form>
         </CardContent>
       </Card>
@@ -145,13 +170,13 @@ export function ApiKeysPage() {
                   <p className="mt-2 break-all font-mono text-sm text-muted-foreground">{item.mask}</p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="icon" onClick={() => renameKey(item.id, item.name)} title="重命名"><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="outline" size="icon" disabled={busyID === item.id} onClick={() => renameKey(item.id, item.name)} title="重命名"><Pencil className="h-4 w-4" /></Button>
                   {item.status === "disabled" ? (
-                    <Button variant="outline" size="icon" onClick={() => enableKey(item.id)} title="重新启用"><RotateCcw className="h-4 w-4" /></Button>
+                    <Button variant="outline" size="icon" disabled={busyID === item.id} onClick={() => enableKey(item.id)} title="重新启用"><RotateCcw className="h-4 w-4" /></Button>
                   ) : (
-                    <Button variant="outline" onClick={() => disableKey(item.id)}>停用</Button>
+                    <Button variant="outline" disabled={busyID === item.id} onClick={() => disableKey(item.id)}>停用</Button>
                   )}
-                  <Button variant="destructive" size="icon" onClick={() => deleteKey(item.id)} title="删除"><Trash2 className="h-4 w-4" /></Button>
+                  <Button variant="destructive" size="icon" disabled={busyID === item.id} onClick={() => deleteKey(item.id)} title="删除"><Trash2 className="h-4 w-4" /></Button>
                 </div>
               </div>
             ))

@@ -27,8 +27,11 @@ function lazyPage(element: React.ReactNode) {
 }
 
 function ProtectedRoute() {
-  const { token } = useAuth();
+  const { token, authStatus } = useAuth();
   const location = useLocation();
+  if (token && authStatus === "checking") {
+    return <PageFallback />;
+  }
   if (!token) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
@@ -69,7 +72,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <ErrorBoundary>
       <AuthProvider>
         <RouterProvider router={router} />
-        <Toaster richColors position="top-right" />
+        <Toaster richColors position="top-right" visibleToasts={1} />
       </AuthProvider>
     </ErrorBoundary>
   </React.StrictMode>
