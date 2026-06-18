@@ -88,6 +88,11 @@ export function createAPI(token?: string) {
         method: "POST",
         body: JSON.stringify({ login, password })
       }),
+    changePassword: (payload: { old_password: string; new_password: string }) =>
+      request<{ status: string }>("/api/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      }),
     publicModels: () => request<{ items: PublicModel[] }>("/api/public/models"),
     siteInfo: () => request<PublicSiteInfo>("/api/public/site-info"),
     me: () => request<User>("/api/auth/me"),

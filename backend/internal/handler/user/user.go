@@ -1,11 +1,13 @@
 package user
 
 import (
+	"errors"
 	"net"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 
 	"lingshu/backend/internal/dto"
 	"lingshu/backend/internal/middleware"
@@ -141,6 +143,10 @@ func (h Handler) DeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.keys.DeleteForUser(r.Context(), current.ID, chi.URLParam(r, "id")); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			httpx.Error(w, http.StatusNotFound, "密钥不存在或已被删除")
+			return
+		}
 		httpx.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
