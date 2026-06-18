@@ -201,7 +201,7 @@ export function createAPI(token?: string) {
         method: "DELETE"
       }),
     testChannel: (id: string, baseURL?: string) =>
-      request<{ status: string; message?: string }>(`/api/admin/channels/${id}/test`, {
+      request<{ ok: boolean; status?: number; category: string; message: string; latency_ms: number }>(`/api/admin/channels/${id}/test`, {
         method: "POST",
         body: JSON.stringify({ base_url: baseURL ?? "" })
       }),

@@ -71,7 +71,7 @@ func (r GatewayRepository) ListEnabledModels(ctx context.Context) ([]GatewayMode
 		SELECT id::text, public_name, type, billing_mode,
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text, rate_multiplier::text
 		FROM models
-		WHERE status='enabled'
+		WHERE status='enabled' AND deleted_at IS NULL
 		ORDER BY sort_order ASC, created_at DESC
 	`)
 	if err != nil {
@@ -95,7 +95,7 @@ func (r GatewayRepository) FindEnabledModel(ctx context.Context, publicName stri
 		SELECT id::text, public_name, type, billing_mode,
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text, rate_multiplier::text
 		FROM models
-		WHERE public_name=$1 AND status='enabled'
+		WHERE public_name=$1 AND status='enabled' AND deleted_at IS NULL
 	`, publicName).Scan(&item.ID, &item.PublicName, &item.Type, &item.BillingMode, &item.InputPricePer1K, &item.OutputPricePer1K, &item.PricePerCall, &item.RateMultiplier)
 	return item, err
 }
@@ -107,6 +107,7 @@ func (r GatewayRepository) ListCandidateChannels(ctx context.Context, modelID st
 		FROM upstream_channels c
 		JOIN channel_models cm ON cm.channel_id = c.id AND cm.model_id=$1 AND cm.status='enabled'
 		WHERE c.status='enabled'
+		  AND c.deleted_at IS NULL
 		  AND (c.health='healthy' OR (c.health='unhealthy' AND c.last_error_at < now() - interval '5 minutes'))
 		ORDER BY CASE WHEN c.health='healthy' THEN 0 ELSE 1 END, c.created_at ASC
 	`, modelID)

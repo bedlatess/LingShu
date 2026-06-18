@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -46,9 +47,9 @@ type ChannelRepository struct {
 }
 
 type ChannelDetailStats struct {
-	Requests      int    `json:"requests"`
-	Successes     int    `json:"successes"`
-	Failures      int    `json:"failures"`
+	Requests       int    `json:"requests"`
+	Successes      int    `json:"successes"`
+	Failures       int    `json:"failures"`
 	AverageLatency string `json:"average_latency"`
 }
 
@@ -62,9 +63,9 @@ type ChannelDetailBinding struct {
 }
 
 type ChannelDetail struct {
-	Channel  Channel                `json:"channel"`
-	Models   []ChannelDetailBinding `json:"models"`
-	Stats    ChannelDetailStats     `json:"stats"`
+	Channel Channel                `json:"channel"`
+	Models  []ChannelDetailBinding `json:"models"`
+	Stats   ChannelDetailStats     `json:"stats"`
 }
 
 type ChannelModelBinding struct {
@@ -93,7 +94,7 @@ func (r ChannelRepository) List(ctx context.Context) ([]Channel, error) {
 
 func (r ChannelRepository) ListPaged(ctx context.Context, limit, offset int) ([]Channel, int, error) {
 	var total int
-	if err := r.db.QueryRow(ctx, `SELECT count(*)::int FROM upstream_channels`).Scan(&total); err != nil {
+	if err := r.db.QueryRow(ctx, `SELECT count(*)::int FROM upstream_channels WHERE deleted_at IS NULL`).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	rows, err := r.db.Query(ctx, `
@@ -101,6 +102,7 @@ func (r ChannelRepository) ListPaged(ctx context.Context, limit, offset int) ([]
 		       rpm_limit, concurrency_limit, fail_threshold, fail_count, health,
 		       last_success_at, last_error_at, COALESCE(last_error_message, ''), created_at, updated_at
 		FROM upstream_channels
+		WHERE deleted_at IS NULL
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2
 	`, limit, offset)
@@ -127,7 +129,7 @@ func (r ChannelRepository) FindByID(ctx context.Context, id string) (Channel, er
 		       rpm_limit, concurrency_limit, fail_threshold, fail_count, health,
 		       last_success_at, last_error_at, COALESCE(last_error_message, ''), created_at, updated_at
 		FROM upstream_channels
-		WHERE id=$1
+		WHERE id=$1 AND deleted_at IS NULL
 	`, id).Scan(
 		&item.ID, &item.Name, &item.ProviderType, &item.BaseURL, &item.Status,
 		&item.Weight, &item.TimeoutSeconds, &item.RPMLimit, &item.ConcurrencyLimit,
@@ -145,7 +147,7 @@ func (r ChannelRepository) Detail(ctx context.Context, id string) (ChannelDetail
 	rows, err := r.db.Query(ctx, `
 		SELECT cm.id::text, cm.model_id::text, m.public_name, cm.upstream_model_name, cm.status, cm.created_at
 		FROM channel_models cm
-		JOIN models m ON m.id = cm.model_id
+		JOIN models m ON m.id = cm.model_id AND m.deleted_at IS NULL
 		WHERE cm.channel_id=$1
 		ORDER BY cm.created_at DESC
 	`, id)
@@ -199,7 +201,7 @@ func (r ChannelRepository) Update(ctx context.Context, id string, input ChannelI
 		    api_key_encrypted=CASE WHEN $5='' THEN api_key_encrypted ELSE $5 END,
 		    status=$6, weight=$7, timeout_seconds=$8, rpm_limit=$9,
 		    concurrency_limit=$10, fail_threshold=$11, updated_at=now()
-		WHERE id=$1
+		WHERE id=$1 AND deleted_at IS NULL
 		RETURNING id::text, name, provider_type, base_url, status, weight, timeout_seconds,
 		       rpm_limit, concurrency_limit, fail_threshold, fail_count, health,
 		       last_success_at, last_error_at, COALESCE(last_error_message, ''), created_at, updated_at
@@ -208,7 +210,7 @@ func (r ChannelRepository) Update(ctx context.Context, id string, input ChannelI
 }
 
 func (r ChannelRepository) Disable(ctx context.Context, id string) error {
-	tag, err := r.db.Exec(ctx, "UPDATE upstream_channels SET status='disabled', updated_at=now() WHERE id=$1", id)
+	tag, err := r.db.Exec(ctx, "UPDATE upstream_channels SET status='disabled', updated_at=now() WHERE id=$1 AND deleted_at IS NULL", id)
 	if err != nil {
 		return err
 	}
@@ -219,15 +221,22 @@ func (r ChannelRepository) Disable(ctx context.Context, id string) error {
 }
 
 func (r ChannelRepository) Delete(ctx context.Context, id string) error {
-	return r.Disable(ctx, id)
+	tag, err := r.db.Exec(ctx, "UPDATE upstream_channels SET deleted_at=now(), status='disabled', updated_at=now() WHERE id=$1 AND deleted_at IS NULL", id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return errors.New("channel not found")
+	}
+	return nil
 }
 
 func (r ChannelRepository) MarkTest(ctx context.Context, id string, ok bool, message string) error {
 	if ok {
-		_, err := r.db.Exec(ctx, "UPDATE upstream_channels SET health='healthy', fail_count=0, last_success_at=now(), last_error_message=NULL WHERE id=$1", id)
+		_, err := r.db.Exec(ctx, "UPDATE upstream_channels SET health='healthy', fail_count=0, last_success_at=now(), last_error_message=NULL WHERE id=$1 AND deleted_at IS NULL", id)
 		return err
 	}
-	_, err := r.db.Exec(ctx, "UPDATE upstream_channels SET health='unhealthy', fail_count=fail_count+1, last_error_at=now(), last_error_message=$2 WHERE id=$1", id, message)
+	_, err := r.db.Exec(ctx, "UPDATE upstream_channels SET health='unhealthy', fail_count=fail_count+1, last_error_at=now(), last_error_message=$2 WHERE id=$1 AND deleted_at IS NULL", id, message)
 	return err
 }
 

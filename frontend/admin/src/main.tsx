@@ -320,7 +320,7 @@ function App() {
       render: (_, channel) => (
         <Space>
           <Button onClick={() => { setEditingChannel(channel); channelForm.setFieldsValue(channel); }}>编辑</Button>
-          <Button onClick={() => runWrite(async () => { const result = await api.testChannel(channel.id, channel.base_url); message.success(result.message || "渠道测试完成"); }, "测试渠道失败").catch(() => undefined)}>测试</Button>
+          <Button onClick={() => runWrite(async () => { const result = await api.testChannel(channel.id, channel.base_url); if (result.ok) { message.success(`通过 ${result.latency_ms}ms`); } else { message.error(`${result.category}: ${result.message}`); } }, "测试渠道失败").catch(() => undefined)}>测试</Button>
           <Button
             danger
             onClick={() => Modal.confirm({

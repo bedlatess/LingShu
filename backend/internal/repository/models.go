@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -78,7 +79,7 @@ func (r ModelRepository) List(ctx context.Context) ([]Model, error) {
 
 func (r ModelRepository) ListPaged(ctx context.Context, limit, offset int) ([]Model, int, error) {
 	var total int
-	if err := r.db.QueryRow(ctx, `SELECT count(*)::int FROM models`).Scan(&total); err != nil {
+	if err := r.db.QueryRow(ctx, `SELECT count(*)::int FROM models WHERE deleted_at IS NULL`).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	rows, err := r.db.Query(ctx, `
@@ -86,6 +87,7 @@ func (r ModelRepository) ListPaged(ctx context.Context, limit, offset int) ([]Mo
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
 		       rate_multiplier::text, status, sort_order, created_at, updated_at
 		FROM models
+		WHERE deleted_at IS NULL
 		ORDER BY sort_order ASC, created_at DESC
 		LIMIT $1 OFFSET $2
 	`, limit, offset)
@@ -111,7 +113,7 @@ func (r ModelRepository) FindByID(ctx context.Context, id string) (Model, error)
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
 		       rate_multiplier::text, status, sort_order, created_at, updated_at
 		FROM models
-		WHERE id=$1
+		WHERE id=$1 AND deleted_at IS NULL
 	`, id)
 	return scanModel(row)
 }
@@ -126,7 +128,7 @@ func (r ModelRepository) Detail(ctx context.Context, id string) (ModelDetail, er
 		SELECT cm.id::text, cm.channel_id::text, c.name, c.provider_type, c.base_url,
 		       cm.upstream_model_name, cm.status, cm.created_at
 		FROM channel_models cm
-		JOIN upstream_channels c ON c.id = cm.channel_id
+		JOIN upstream_channels c ON c.id = cm.channel_id AND c.deleted_at IS NULL
 		WHERE cm.model_id=$1
 		ORDER BY cm.created_at DESC
 	`, id)
@@ -184,7 +186,7 @@ func (r ModelRepository) Update(ctx context.Context, id string, input ModelInput
 		SET public_name=$2, type=$3, model_group=$4, billing_mode=$5,
 		    input_price_per_1k=$6::numeric, output_price_per_1k=$7::numeric, price_per_call=$8::numeric,
 		    rate_multiplier=$9::numeric, status=$10, sort_order=$11, updated_at=now()
-		WHERE id=$1
+		WHERE id=$1 AND deleted_at IS NULL
 		RETURNING id::text, public_name, type, model_group, billing_mode,
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
 		       rate_multiplier::text, status, sort_order, created_at, updated_at
@@ -193,7 +195,7 @@ func (r ModelRepository) Update(ctx context.Context, id string, input ModelInput
 }
 
 func (r ModelRepository) Disable(ctx context.Context, id string) error {
-	tag, err := r.db.Exec(ctx, "UPDATE models SET status='disabled', updated_at=now() WHERE id=$1", id)
+	tag, err := r.db.Exec(ctx, "UPDATE models SET status='disabled', updated_at=now() WHERE id=$1 AND deleted_at IS NULL", id)
 	if err != nil {
 		return err
 	}
@@ -204,7 +206,14 @@ func (r ModelRepository) Disable(ctx context.Context, id string) error {
 }
 
 func (r ModelRepository) Delete(ctx context.Context, id string) error {
-	return r.Disable(ctx, id)
+	tag, err := r.db.Exec(ctx, "UPDATE models SET deleted_at=now(), status='disabled', updated_at=now() WHERE id=$1 AND deleted_at IS NULL", id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return errors.New("model not found")
+	}
+	return nil
 }
 
 type modelScanner interface {

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -59,13 +60,13 @@ func (r APIKeyRepository) ListByUser(ctx context.Context, userID string) ([]APIK
 
 func (r APIKeyRepository) ListByUserPaged(ctx context.Context, userID string, limit, offset int) ([]APIKey, int, error) {
 	var total int
-	if err := r.db.QueryRow(ctx, `SELECT count(*)::int FROM api_keys WHERE user_id=$1`, userID).Scan(&total); err != nil {
+	if err := r.db.QueryRow(ctx, `SELECT count(*)::int FROM api_keys WHERE user_id=$1 AND deleted_at IS NULL`, userID).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	rows, err := r.db.Query(ctx, `
 		SELECT id::text, user_id::text, key_prefix, name, status, expires_at, created_at
 		FROM api_keys
-		WHERE user_id=$1
+		WHERE user_id=$1 AND deleted_at IS NULL
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
 	`, userID, limit, offset)
@@ -92,12 +93,13 @@ func (r APIKeyRepository) ListAll(ctx context.Context) ([]APIKey, error) {
 
 func (r APIKeyRepository) ListAllPaged(ctx context.Context, limit, offset int) ([]APIKey, int, error) {
 	var total int
-	if err := r.db.QueryRow(ctx, `SELECT count(*)::int FROM api_keys`).Scan(&total); err != nil {
+	if err := r.db.QueryRow(ctx, `SELECT count(*)::int FROM api_keys WHERE deleted_at IS NULL`).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	rows, err := r.db.Query(ctx, `
 		SELECT id::text, user_id::text, key_prefix, name, status, expires_at, created_at
 		FROM api_keys
+		WHERE deleted_at IS NULL
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2
 	`, limit, offset)
@@ -127,7 +129,7 @@ func (r APIKeyRepository) Create(ctx context.Context, params CreateAPIKeyParams)
 }
 
 func (r APIKeyRepository) UpdateStatus(ctx context.Context, id, status string) error {
-	tag, err := r.db.Exec(ctx, "UPDATE api_keys SET status=$2, updated_at=now() WHERE id=$1", id, status)
+	tag, err := r.db.Exec(ctx, "UPDATE api_keys SET status=$2, updated_at=now() WHERE id=$1 AND deleted_at IS NULL", id, status)
 	if err != nil {
 		return err
 	}
@@ -143,7 +145,7 @@ func (r APIKeyRepository) UpdateForUser(ctx context.Context, params UpdateAPIKey
 		SET name=CASE WHEN $3='' THEN name ELSE $3 END,
 		    status=CASE WHEN $4='' THEN status ELSE $4 END,
 		    updated_at=now()
-		WHERE id=$1 AND user_id=$2
+		WHERE id=$1 AND user_id=$2 AND deleted_at IS NULL
 		RETURNING id::text, user_id::text, key_prefix, name, status, expires_at, created_at
 	`, params.ID, params.UserID, params.Name, params.Status)
 	return scanAPIKey(row)
@@ -161,7 +163,14 @@ func (r APIKeyRepository) DeleteForUser(ctx context.Context, id, userID string) 
 }
 
 func (r APIKeyRepository) Delete(ctx context.Context, id string) error {
-	return r.UpdateStatus(ctx, id, "disabled")
+	tag, err := r.db.Exec(ctx, "UPDATE api_keys SET deleted_at=now(), status='disabled', updated_at=now() WHERE id=$1 AND deleted_at IS NULL", id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return errors.New("api key not found")
+	}
+	return nil
 }
 
 func (r APIKeyRepository) FindPrincipalByHash(ctx context.Context, hash string) (APIKeyPrincipal, error) {
@@ -171,7 +180,7 @@ func (r APIKeyRepository) FindPrincipalByHash(ctx context.Context, hash string) 
 		       k.rpm_limit, k.concurrency_limit
 		FROM api_keys k
 		JOIN users u ON u.id = k.user_id
-		WHERE k.key_hash=$1
+		WHERE k.key_hash=$1 AND k.deleted_at IS NULL
 	`, hash).Scan(&principal.APIKeyID, &principal.UserID, &principal.UserRole, &principal.UserStatus, &principal.KeyStatus, &principal.Balance, &principal.RPMLimit, &principal.ConcurrencyLimit)
 	return principal, err
 }

@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -87,16 +90,60 @@ func (s ChannelService) Test(ctx context.Context, id, baseURL string) (map[strin
 	if err != nil {
 		return nil, err
 	}
+	start := time.Now()
 	resp, err := http.DefaultClient.Do(req)
+	latency := time.Since(start).Milliseconds()
 	if err != nil {
+		category := "network_error"
+		if errors.Is(err, context.DeadlineExceeded) {
+			category = "timeout"
+		}
 		_ = s.channels.MarkTest(ctx, id, false, err.Error())
-		return map[string]any{"ok": false, "message": err.Error()}, nil
+		return map[string]any{"ok": false, "category": category, "message": err.Error(), "latency_ms": latency}, nil
 	}
+	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	defer resp.Body.Close()
-	ok := resp.StatusCode >= 200 && resp.StatusCode < 500
+
+	ok := resp.StatusCode >= 200 && resp.StatusCode < 300
 	message := resp.Status
+	if !ok {
+		var probe struct {
+			Error struct {
+				Message string `json:"message"`
+				Type    string `json:"type"`
+			} `json:"error"`
+		}
+		if json.Unmarshal(bodyBytes, &probe) == nil && probe.Error.Message != "" {
+			message = fmt.Sprintf("%s - %s", resp.Status, probe.Error.Message)
+		} else if len(bodyBytes) > 0 {
+			message = fmt.Sprintf("%s - %s", resp.Status, strings.TrimSpace(string(bodyBytes)))
+		}
+	}
+
+	category := categorizeChannelTest(resp.StatusCode)
 	_ = s.channels.MarkTest(ctx, id, ok, message)
-	return map[string]any{"ok": ok, "status": resp.StatusCode, "message": message}, nil
+	return map[string]any{"ok": ok, "status": resp.StatusCode, "category": category, "message": message, "latency_ms": latency}, nil
+}
+
+func categorizeChannelTest(status int) string {
+	switch {
+	case status >= 200 && status < 300:
+		return "ok"
+	case status == http.StatusBadRequest:
+		return "bad_request"
+	case status == http.StatusUnauthorized || status == http.StatusForbidden:
+		return "auth"
+	case status == http.StatusNotFound:
+		return "not_found"
+	case status == http.StatusTooManyRequests:
+		return "rate_limit"
+	case status == http.StatusInternalServerError || status == http.StatusBadGateway || status == http.StatusServiceUnavailable:
+		return "server_error"
+	case status == 522 || status == 524:
+		return "upstream_blocked"
+	default:
+		return "unknown"
+	}
 }
 
 func (s ChannelService) BindModel(ctx context.Context, actorID string, input repository.BindChannelModelInput, ip, userAgent string) (repository.ChannelModelBinding, error) {
