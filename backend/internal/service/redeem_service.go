@@ -30,6 +30,10 @@ func (s RedeemService) List(ctx context.Context) ([]repository.RedeemCode, error
 	return s.redeems.List(ctx)
 }
 
+func (s RedeemService) ListPaged(ctx context.Context, page, limit int) ([]repository.RedeemCode, int, error) {
+	return s.redeems.ListPaged(ctx, limit, (page-1)*limit)
+}
+
 func (s RedeemService) Create(ctx context.Context, actorID string, input CreateRedeemInput, ip, userAgent string) ([]repository.RedeemCode, error) {
 	if input.Amount == "" {
 		return nil, errors.New("amount is required")

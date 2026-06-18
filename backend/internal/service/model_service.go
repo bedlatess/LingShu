@@ -20,6 +20,14 @@ func (s ModelService) List(ctx context.Context) ([]repository.Model, error) {
 	return s.models.List(ctx)
 }
 
+func (s ModelService) ListPaged(ctx context.Context, page, limit int) ([]repository.Model, int, error) {
+	return s.models.ListPaged(ctx, limit, (page-1)*limit)
+}
+
+func (s ModelService) Detail(ctx context.Context, id string) (repository.ModelDetail, error) {
+	return s.models.Detail(ctx, id)
+}
+
 func (s ModelService) Create(ctx context.Context, actorID string, input repository.ModelInput, ip, userAgent string) (repository.Model, error) {
 	input = normalizeModel(input)
 	if err := validateModel(input); err != nil {
@@ -51,6 +59,14 @@ func (s ModelService) Disable(ctx context.Context, actorID, id, ip, userAgent st
 		return err
 	}
 	_ = s.audits.Write(ctx, repository.AuditEntry{ActorID: actorID, Action: "admin.model.disable", TargetType: "model", TargetID: id, IP: ip, UserAgent: userAgent})
+	return nil
+}
+
+func (s ModelService) Delete(ctx context.Context, actorID, id, ip, userAgent string) error {
+	if err := s.models.Delete(ctx, id); err != nil {
+		return err
+	}
+	_ = s.audits.Write(ctx, repository.AuditEntry{ActorID: actorID, Action: "admin.model.delete", TargetType: "model", TargetID: id, IP: ip, UserAgent: userAgent})
 	return nil
 }
 

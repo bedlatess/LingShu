@@ -53,14 +53,24 @@ func NewAPIKeyRepository(db *pgxpool.Pool) APIKeyRepository {
 }
 
 func (r APIKeyRepository) ListByUser(ctx context.Context, userID string) ([]APIKey, error) {
+	items, _, err := r.ListByUserPaged(ctx, userID, 100, 0)
+	return items, err
+}
+
+func (r APIKeyRepository) ListByUserPaged(ctx context.Context, userID string, limit, offset int) ([]APIKey, int, error) {
+	var total int
+	if err := r.db.QueryRow(ctx, `SELECT count(*)::int FROM api_keys WHERE user_id=$1`, userID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
 	rows, err := r.db.Query(ctx, `
 		SELECT id::text, user_id::text, key_prefix, name, status, expires_at, created_at
 		FROM api_keys
 		WHERE user_id=$1
 		ORDER BY created_at DESC
-	`, userID)
+		LIMIT $2 OFFSET $3
+	`, userID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -68,21 +78,31 @@ func (r APIKeyRepository) ListByUser(ctx context.Context, userID string) ([]APIK
 	for rows.Next() {
 		item, err := scanAPIKey(rows)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		items = append(items, item)
 	}
-	return items, rows.Err()
+	return items, total, rows.Err()
 }
 
 func (r APIKeyRepository) ListAll(ctx context.Context) ([]APIKey, error) {
+	items, _, err := r.ListAllPaged(ctx, 100, 0)
+	return items, err
+}
+
+func (r APIKeyRepository) ListAllPaged(ctx context.Context, limit, offset int) ([]APIKey, int, error) {
+	var total int
+	if err := r.db.QueryRow(ctx, `SELECT count(*)::int FROM api_keys`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
 	rows, err := r.db.Query(ctx, `
 		SELECT id::text, user_id::text, key_prefix, name, status, expires_at, created_at
 		FROM api_keys
 		ORDER BY created_at DESC
-	`)
+		LIMIT $1 OFFSET $2
+	`, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -90,11 +110,11 @@ func (r APIKeyRepository) ListAll(ctx context.Context) ([]APIKey, error) {
 	for rows.Next() {
 		item, err := scanAPIKey(rows)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		items = append(items, item)
 	}
-	return items, rows.Err()
+	return items, total, rows.Err()
 }
 
 func (r APIKeyRepository) Create(ctx context.Context, params CreateAPIKeyParams) (APIKey, error) {
@@ -138,6 +158,10 @@ func (r APIKeyRepository) DeleteForUser(ctx context.Context, id, userID string) 
 		return pgx.ErrNoRows
 	}
 	return nil
+}
+
+func (r APIKeyRepository) Delete(ctx context.Context, id string) error {
+	return r.UpdateStatus(ctx, id, "disabled")
 }
 
 func (r APIKeyRepository) FindPrincipalByHash(ctx context.Context, hash string) (APIKeyPrincipal, error) {

@@ -19,12 +19,13 @@ func NewAPIKeyHandler(keys service.APIKeyService) APIKeyHandler {
 }
 
 func (h APIKeyHandler) List(w http.ResponseWriter, r *http.Request) {
-	items, err := h.keys.ListAll(r.Context())
+	page, limit := parsePagination(r)
+	items, total, err := h.keys.ListAllPaged(r.Context(), page, limit)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+	writePagedJSON(w, items, total, page, limit)
 }
 
 func (h APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -45,6 +46,15 @@ func (h APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h APIKeyHandler) Disable(w http.ResponseWriter, r *http.Request) {
 	current, _ := middleware.CurrentUser(r.Context())
 	if err := h.keys.Disable(r.Context(), current.ID, chi.URLParam(r, "id"), clientIP(r), r.UserAgent()); err != nil {
+		httpx.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h APIKeyHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	current, _ := middleware.CurrentUser(r.Context())
+	if err := h.keys.Delete(r.Context(), current.ID, chi.URLParam(r, "id"), clientIP(r), r.UserAgent()); err != nil {
 		httpx.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}

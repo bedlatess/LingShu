@@ -39,7 +39,7 @@ func TestShouldRetryStatus(t *testing.T) {
 
 func TestBodyForUpstreamRewritesModel(t *testing.T) {
 	raw := []byte(`{"model":"public-chat","messages":[{"role":"user","content":"hi"}]}`)
-	out := bodyForUpstream(raw, "upstream-chat")
+	out := upstream.PrepareOpenAIBody(raw, "upstream-chat")
 
 	var payload map[string]any
 	if err := json.Unmarshal(out, &payload); err != nil {
@@ -49,9 +49,22 @@ func TestBodyForUpstreamRewritesModel(t *testing.T) {
 		t.Fatalf("model = %v, want upstream-chat", payload["model"])
 	}
 
-	unchanged := string(bodyForUpstream(raw, ""))
+	unchanged := string(upstream.PrepareOpenAIBody(raw, ""))
 	if unchanged != string(raw) {
 		t.Fatalf("empty upstream name should keep raw body")
+	}
+}
+
+func TestBodyWithMaxTokensInjectsDefault(t *testing.T) {
+	raw := []byte(`{"model":"public-chat","messages":[{"role":"user","content":"hi"}]}`)
+	out := bodyWithMaxTokens(raw, 4096)
+
+	var payload map[string]any
+	if err := json.Unmarshal(out, &payload); err != nil {
+		t.Fatalf("unmarshal rewritten body: %v", err)
+	}
+	if got := int(payload["max_tokens"].(float64)); got != 4096 {
+		t.Fatalf("max_tokens = %d, want 4096", got)
 	}
 }
 

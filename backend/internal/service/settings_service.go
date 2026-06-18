@@ -21,6 +21,14 @@ func (s SettingsService) List(ctx context.Context) ([]repository.Setting, error)
 	return s.settings.List(ctx)
 }
 
+func (s SettingsService) ListPaged(ctx context.Context, page, limit int) ([]repository.Setting, int, error) {
+	return s.settings.ListPaged(ctx, limit, (page-1)*limit)
+}
+
+func (s SettingsService) AuditLogsPaged(ctx context.Context, filter repository.AuditLogFilter, page, limit int) ([]repository.AuditLog, int, error) {
+	return s.audits.ListPagedFiltered(ctx, filter, limit, (page-1)*limit)
+}
+
 func (s SettingsService) Patch(ctx context.Context, actorID string, updates []repository.SettingUpdate, ip, userAgent string) ([]repository.Setting, error) {
 	if len(updates) == 0 {
 		return nil, errors.New("updates are required")

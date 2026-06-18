@@ -14,6 +14,7 @@ type Config struct {
 	JWTSecret                    string
 	KeyEncryptionSecret          string
 	DefaultRateMultiplier        string
+	DefaultMaxTokens             int
 	APIKeyPrefix                 string
 	RegistrationEnabled          bool
 	DefaultUserRPMLimit          int
@@ -33,6 +34,7 @@ func Load() Config {
 		JWTSecret:                    env("JWT_SECRET", "change-me"),
 		KeyEncryptionSecret:          env("KEY_ENCRYPTION_SECRET", "change-me-32-bytes"),
 		DefaultRateMultiplier:        env("DEFAULT_RATE_MULTIPLIER", "1.2"),
+		DefaultMaxTokens:             envInt("DEFAULT_MAX_TOKENS", 4096),
 		APIKeyPrefix:                 env("API_KEY_PREFIX", "lsk_live_"),
 		RegistrationEnabled:          envBool("REGISTRATION_ENABLED", false),
 		DefaultUserRPMLimit:          envInt("DEFAULT_USER_RPM_LIMIT", 60),

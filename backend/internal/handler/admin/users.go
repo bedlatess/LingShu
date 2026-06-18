@@ -9,24 +9,28 @@ import (
 
 	"lingshu/backend/internal/middleware"
 	"lingshu/backend/internal/pkg/httpx"
+	"lingshu/backend/internal/repository"
 	"lingshu/backend/internal/service"
 )
 
 type UserHandler struct {
-	users service.AdminUserService
+	users   service.AdminUserService
+	keys    service.APIKeyService
+	reports service.ReportService
 }
 
-func NewUserHandler(users service.AdminUserService) UserHandler {
-	return UserHandler{users: users}
+func NewUserHandler(users service.AdminUserService, keys service.APIKeyService, reports service.ReportService) UserHandler {
+	return UserHandler{users: users, keys: keys, reports: reports}
 }
 
 func (h UserHandler) List(w http.ResponseWriter, r *http.Request) {
-	users, err := h.users.List(r.Context())
+	page, limit := parsePagination(r)
+	users, total, err := h.users.ListPaged(r.Context(), page, limit)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"items": users})
+	writePagedJSON(w, users, total, page, limit)
 }
 
 func (h UserHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -42,6 +46,15 @@ func (h UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusCreated, user)
+}
+
+func (h UserHandler) Get(w http.ResponseWriter, r *http.Request) {
+	user, err := h.users.Get(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusNotFound, err.Error())
+		return
+	}
+	httpx.JSON(w, http.StatusOK, user)
 }
 
 func (h UserHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -98,6 +111,58 @@ func (h UserHandler) AdjustBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, user)
+}
+
+func (h UserHandler) UserLogs(w http.ResponseWriter, r *http.Request) {
+	page, limit := parsePagination(r)
+	query := r.URL.Query()
+	filter := repository.UserLogFilter{
+		Status: strings.TrimSpace(query.Get("status")),
+		Model:  strings.TrimSpace(query.Get("model")),
+		From:   strings.TrimSpace(query.Get("from")),
+		To:     strings.TrimSpace(query.Get("to")),
+	}
+	items, total, err := h.reports.UserLogsFilteredPaged(r.Context(), chi.URLParam(r, "id"), filter, page, limit)
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writePagedJSON(w, items, total, page, limit)
+}
+
+func (h UserHandler) UserLedger(w http.ResponseWriter, r *http.Request) {
+	page, limit := parsePagination(r)
+	query := r.URL.Query()
+	filter := repository.UserLedgerFilter{
+		Type: strings.TrimSpace(query.Get("type")),
+		From: strings.TrimSpace(query.Get("from")),
+		To:   strings.TrimSpace(query.Get("to")),
+	}
+	items, total, err := h.reports.UserLedgerFilteredPaged(r.Context(), chi.URLParam(r, "id"), filter, page, limit)
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writePagedJSON(w, items, total, page, limit)
+}
+
+func (h UserHandler) UserAPIKeys(w http.ResponseWriter, r *http.Request) {
+	page, limit := parsePagination(r)
+	items, total, err := h.keys.ListForUserPaged(r.Context(), chi.URLParam(r, "id"), page, limit)
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writePagedJSON(w, items, total, page, limit)
+}
+
+func (h UserHandler) UserSummary(w http.ResponseWriter, r *http.Request) {
+	item, err := h.reports.UserSummary(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	httpx.JSON(w, http.StatusOK, item)
 }
 
 func (h UserHandler) AuditCount(w http.ResponseWriter, r *http.Request) {

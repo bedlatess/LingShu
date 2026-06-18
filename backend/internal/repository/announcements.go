@@ -40,16 +40,27 @@ func NewAnnouncementRepository(db *pgxpool.Pool) AnnouncementRepository {
 }
 
 func (r AnnouncementRepository) ListAdmin(ctx context.Context) ([]Announcement, error) {
+	items, _, err := r.ListAdminPaged(ctx, 100, 0)
+	return items, err
+}
+
+func (r AnnouncementRepository) ListAdminPaged(ctx context.Context, limit, offset int) ([]Announcement, int, error) {
+	var total int
+	if err := r.db.QueryRow(ctx, `SELECT count(*)::int FROM announcements`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
 	rows, err := r.db.Query(ctx, `
 		SELECT id::text, title, content, status, priority, pinned, publish_at, expire_at, created_at, updated_at
 		FROM announcements
 		ORDER BY pinned DESC, priority DESC, created_at DESC
-	`)
+		LIMIT $1 OFFSET $2
+	`, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
-	return scanAnnouncements(rows)
+	items, err := scanAnnouncements(rows)
+	return items, total, err
 }
 
 func (r AnnouncementRepository) ListOnline(ctx context.Context) ([]Announcement, error) {

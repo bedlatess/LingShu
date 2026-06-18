@@ -43,24 +43,34 @@ func NewRedeemRepository(db *pgxpool.Pool) RedeemRepository {
 }
 
 func (r RedeemRepository) List(ctx context.Context) ([]RedeemCode, error) {
+	items, _, err := r.ListPaged(ctx, 100, 0)
+	return items, err
+}
+
+func (r RedeemRepository) ListPaged(ctx context.Context, limit, offset int) ([]RedeemCode, int, error) {
+	var total int
+	if err := r.db.QueryRow(ctx, `SELECT count(*)::int FROM redeem_codes`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
 	rows, err := r.db.Query(ctx, `
 		SELECT id::text, code_prefix, batch_name, amount::text, status, max_uses, used_count, expires_at, created_at
 		FROM redeem_codes
 		ORDER BY created_at DESC
-	`)
+		LIMIT $1 OFFSET $2
+	`, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 	items := []RedeemCode{}
 	for rows.Next() {
 		item, err := scanRedeemCode(rows)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		items = append(items, item)
 	}
-	return items, rows.Err()
+	return items, total, rows.Err()
 }
 
 func (r RedeemRepository) Create(ctx context.Context, input CreateRedeemCodeInput) (RedeemCode, error) {

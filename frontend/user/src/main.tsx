@@ -1,18 +1,29 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
 import { Navigate, Outlet, RouterProvider, createBrowserRouter, useLocation } from "react-router-dom";
 
 import { AuthProvider, useAuth } from "@/providers/auth";
 import { AppLayout } from "@/components/app-layout";
-import { LoginPage } from "@/routes/login";
-import { DashboardPage } from "@/routes/dashboard";
-import { ApiKeysPage } from "@/routes/api-keys";
-import { UsagePage } from "@/routes/usage";
-import { ModelsPage } from "@/routes/models";
-import { RedeemPage } from "@/routes/redeem";
-import { AnnouncementsPage } from "@/routes/announcements";
-import { SettingsPage } from "@/routes/settings";
+import { ErrorBoundary } from "@/components/error-boundary";
+import { Toaster } from "@/components/ui/sonner";
 import "./styles.css";
+
+const LoginPage = lazy(() => import("@/routes/login").then((module) => ({ default: module.LoginPage })));
+const DashboardPage = lazy(() => import("@/routes/dashboard").then((module) => ({ default: module.DashboardPage })));
+const ApiKeysPage = lazy(() => import("@/routes/api-keys").then((module) => ({ default: module.ApiKeysPage })));
+const UsagePage = lazy(() => import("@/routes/usage").then((module) => ({ default: module.UsagePage })));
+const ModelsPage = lazy(() => import("@/routes/models").then((module) => ({ default: module.ModelsPage })));
+const RedeemPage = lazy(() => import("@/routes/redeem").then((module) => ({ default: module.RedeemPage })));
+const AnnouncementsPage = lazy(() => import("@/routes/announcements").then((module) => ({ default: module.AnnouncementsPage })));
+const SettingsPage = lazy(() => import("@/routes/settings").then((module) => ({ default: module.SettingsPage })));
+
+function PageFallback() {
+  return <div className="min-h-screen bg-background" />;
+}
+
+function lazyPage(element: React.ReactNode) {
+  return <Suspense fallback={<PageFallback />}>{element}</Suspense>;
+}
 
 function ProtectedRoute() {
   const { token } = useAuth();
@@ -28,19 +39,19 @@ function ProtectedRoute() {
 }
 
 const router = createBrowserRouter([
-  { path: "/login", element: <LoginPage /> },
+  { path: "/login", element: lazyPage(<LoginPage />) },
   {
     path: "/",
     element: <ProtectedRoute />,
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
-      { path: "dashboard", element: <DashboardPage /> },
-      { path: "api-keys", element: <ApiKeysPage /> },
-      { path: "usage", element: <UsagePage /> },
-      { path: "models", element: <ModelsPage /> },
-      { path: "redeem", element: <RedeemPage /> },
-      { path: "announcements", element: <AnnouncementsPage /> },
-      { path: "settings", element: <SettingsPage /> }
+      { path: "dashboard", element: lazyPage(<DashboardPage />) },
+      { path: "api-keys", element: lazyPage(<ApiKeysPage />) },
+      { path: "usage", element: lazyPage(<UsagePage />) },
+      { path: "models", element: lazyPage(<ModelsPage />) },
+      { path: "redeem", element: lazyPage(<RedeemPage />) },
+      { path: "announcements", element: lazyPage(<AnnouncementsPage />) },
+      { path: "settings", element: lazyPage(<SettingsPage />) }
     ]
   },
   { path: "*", element: <Navigate to="/dashboard" replace /> }
@@ -48,8 +59,11 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <AuthProvider>
-      <RouterProvider router={router} />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <RouterProvider router={router} />
+        <Toaster richColors position="top-right" />
+      </AuthProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );

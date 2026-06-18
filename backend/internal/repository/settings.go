@@ -29,24 +29,34 @@ func NewSettingsRepository(db *pgxpool.Pool) SettingsRepository {
 }
 
 func (r SettingsRepository) List(ctx context.Context) ([]Setting, error) {
+	items, _, err := r.ListPaged(ctx, 100, 0)
+	return items, err
+}
+
+func (r SettingsRepository) ListPaged(ctx context.Context, limit, offset int) ([]Setting, int, error) {
+	var total int
+	if err := r.db.QueryRow(ctx, `SELECT count(*)::int FROM system_settings`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
 	rows, err := r.db.Query(ctx, `
 		SELECT key, value, description, COALESCE(updated_by::text, ''), updated_at
 		FROM system_settings
 		ORDER BY key ASC
-	`)
+		LIMIT $1 OFFSET $2
+	`, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 	items := []Setting{}
 	for rows.Next() {
 		var item Setting
 		if err := rows.Scan(&item.Key, &item.Value, &item.Description, &item.UpdatedBy, &item.UpdatedAt); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		items = append(items, item)
 	}
-	return items, rows.Err()
+	return items, total, rows.Err()
 }
 
 func (r SettingsRepository) Patch(ctx context.Context, actorID string, updates []SettingUpdate) ([]Setting, error) {

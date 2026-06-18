@@ -22,8 +22,9 @@ import (
 )
 
 type GatewayService struct {
-	repo   repository.GatewayRepository
-	frozen redisstore.FrozenStore
+	repo          repository.GatewayRepository
+	frozen        redisstore.FrozenStore
+	defaultTokens int
 }
 
 type ChatRequest struct {
@@ -50,8 +51,11 @@ var (
 	ErrRateLimited         = errors.New("rate limited")
 )
 
-func NewGatewayService(repo repository.GatewayRepository, frozen redisstore.FrozenStore) GatewayService {
-	return GatewayService{repo: repo, frozen: frozen}
+func NewGatewayService(repo repository.GatewayRepository, frozen redisstore.FrozenStore, defaultTokens int) GatewayService {
+	if defaultTokens <= 0 {
+		defaultTokens = 4096
+	}
+	return GatewayService{repo: repo, frozen: frozen, defaultTokens: defaultTokens}
 }
 
 func (s GatewayService) Models(ctx context.Context) ([]repository.GatewayModel, error) {
@@ -80,7 +84,8 @@ func (s GatewayService) Chat(ctx context.Context, principal GatewayPrincipal, ra
 	multiplierUnits, _ := billing.DecimalStringToUnits(model.RateMultiplier)
 	estimatedInput := billing.EstimateTokens(string(rawBody))
 	if req.MaxTokens <= 0 {
-		req.MaxTokens = 2048
+		req.MaxTokens = int64(s.defaultTokens)
+		rawBody = bodyWithMaxTokens(rawBody, s.defaultTokens)
 	}
 	estimate := estimateChargeForModel(model, req, estimatedInput, multiplierUnits)
 	balanceUnits, _ := billing.DecimalStringToUnits(principal.Balance)
@@ -171,7 +176,8 @@ func (s GatewayService) OpenChatStream(ctx context.Context, principal GatewayPri
 	multiplierUnits, _ := billing.DecimalStringToUnits(model.RateMultiplier)
 	estimatedInput := billing.EstimateTokens(string(rawBody))
 	if req.MaxTokens <= 0 {
-		req.MaxTokens = 2048
+		req.MaxTokens = int64(s.defaultTokens)
+		rawBody = bodyWithMaxTokens(rawBody, s.defaultTokens)
 	}
 	estimate := estimateChargeForModel(model, req, estimatedInput, multiplierUnits)
 	balanceUnits, _ := billing.DecimalStringToUnits(principal.Balance)
@@ -472,44 +478,45 @@ func stickyKey(principal GatewayPrincipal, req ChatRequest, headerSessionID stri
 
 func (s GatewayService) forwardOnce(ctx context.Context, channel repository.GatewayChannel, rawBody []byte) (upstream.ChatResponse, error) {
 	upstreamKeyBytes, _ := base64.StdEncoding.DecodeString(channel.APIKeyEncrypted)
-	return upstream.ForwardChat(ctx, channel.BaseURL, string(upstreamKeyBytes), channel.TimeoutSeconds, bodyForUpstream(rawBody, channel.UpstreamModelName))
+	provider := upstream.ProviderForType(channel.ProviderType)
+	return provider.ForwardChat(ctx, channel.BaseURL, string(upstreamKeyBytes), channel.TimeoutSeconds, rawBody, channel.UpstreamModelName)
 }
 
 func (s GatewayService) openStreamOnce(ctx context.Context, channel repository.GatewayChannel, rawBody []byte) (*http.Response, error) {
 	upstreamKeyBytes, _ := base64.StdEncoding.DecodeString(channel.APIKeyEncrypted)
-	return upstream.OpenChatStream(ctx, channel.BaseURL, string(upstreamKeyBytes), channel.TimeoutSeconds, bodyForUpstream(rawBody, channel.UpstreamModelName))
+	provider := upstream.ProviderForType(channel.ProviderType)
+	return provider.OpenChatStream(ctx, channel.BaseURL, string(upstreamKeyBytes), channel.TimeoutSeconds, rawBody, channel.UpstreamModelName)
 }
 
 func shouldRetryStatus(status int) bool {
 	return status == http.StatusUnauthorized || status == http.StatusForbidden || status == http.StatusTooManyRequests || status >= 500
 }
 
-func bodyForUpstream(rawBody []byte, upstreamModelName string) []byte {
+func bodyWithMaxTokens(rawBody []byte, maxTokens int) []byte {
+	if maxTokens <= 0 {
+		return rawBody
+	}
 	var payload map[string]any
 	if err := json.Unmarshal(rawBody, &payload); err != nil {
 		return rawBody
 	}
-	changed := false
-	if name := strings.TrimSpace(upstreamModelName); name != "" {
-		payload["model"] = name
-		changed = true
-	}
-	// 流式请求强制要求上游在末帧回灌真实 usage，否则只能本地估算导致计费失真。
-	// 多数 OpenAI 兼容上游需要显式 stream_options.include_usage=true 才回灌。
-	if stream, _ := payload["stream"].(bool); stream {
-		opts, ok := payload["stream_options"].(map[string]any)
-		if !ok {
-			opts = map[string]any{}
-		}
-		if _, exists := opts["include_usage"]; !exists {
-			opts["include_usage"] = true
-			payload["stream_options"] = opts
-			changed = true
+	if existing, ok := payload["max_tokens"]; ok {
+		switch value := existing.(type) {
+		case float64:
+			if value > 0 {
+				return rawBody
+			}
+		case int:
+			if value > 0 {
+				return rawBody
+			}
+		case json.Number:
+			if parsed, err := value.Int64(); err == nil && parsed > 0 {
+				return rawBody
+			}
 		}
 	}
-	if !changed {
-		return rawBody
-	}
+	payload["max_tokens"] = maxTokens
 	out, err := json.Marshal(payload)
 	if err != nil {
 		return rawBody

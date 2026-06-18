@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"lingshu/backend/internal/dto"
 	"lingshu/backend/internal/middleware"
 	"lingshu/backend/internal/pkg/httpx"
 	"lingshu/backend/internal/service"
@@ -64,7 +65,7 @@ func (h Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	httpx.JSON(w, http.StatusOK, item)
+	httpx.JSON(w, http.StatusOK, dto.NewUserDashboardDTO(item))
 }
 
 func (h Handler) Models(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +74,7 @@ func (h Handler) Models(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+	httpx.JSON(w, http.StatusOK, map[string]any{"items": dto.NewUserModelConfigDTOs(items)})
 }
 
 func (h Handler) APIKeys(w http.ResponseWriter, r *http.Request) {

@@ -24,6 +24,14 @@ func (s ChannelService) List(ctx context.Context) ([]repository.Channel, error) 
 	return s.channels.List(ctx)
 }
 
+func (s ChannelService) ListPaged(ctx context.Context, page, limit int) ([]repository.Channel, int, error) {
+	return s.channels.ListPaged(ctx, limit, (page-1)*limit)
+}
+
+func (s ChannelService) Detail(ctx context.Context, id string) (repository.ChannelDetail, error) {
+	return s.channels.Detail(ctx, id)
+}
+
 func (s ChannelService) Create(ctx context.Context, actorID string, input repository.ChannelInput, ip, userAgent string) (repository.Channel, error) {
 	input = normalizeChannel(input)
 	if err := validateChannel(input, true); err != nil {
@@ -62,6 +70,14 @@ func (s ChannelService) Disable(ctx context.Context, actorID, id, ip, userAgent 
 	return nil
 }
 
+func (s ChannelService) Delete(ctx context.Context, actorID, id, ip, userAgent string) error {
+	if err := s.channels.Delete(ctx, id); err != nil {
+		return err
+	}
+	_ = s.audits.Write(ctx, repository.AuditEntry{ActorID: actorID, Action: "admin.channel.delete", TargetType: "channel", TargetID: id, IP: ip, UserAgent: userAgent})
+	return nil
+}
+
 func (s ChannelService) Test(ctx context.Context, id, baseURL string) (map[string]any, error) {
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
@@ -95,11 +111,22 @@ func (s ChannelService) BindModel(ctx context.Context, actorID string, input rep
 	return item, nil
 }
 
+func (s ChannelService) UnbindModel(ctx context.Context, actorID, channelID, modelID, ip, userAgent string) error {
+	if channelID == "" || modelID == "" {
+		return errors.New("channel_id and model_id are required")
+	}
+	if err := s.channels.UnbindModel(ctx, channelID, modelID); err != nil {
+		return err
+	}
+	_ = s.audits.Write(ctx, repository.AuditEntry{ActorID: actorID, Action: "admin.channel.unbind_model", TargetType: "channel_model", TargetID: modelID, After: map[string]string{"channel_id": channelID, "model_id": modelID}, IP: ip, UserAgent: userAgent})
+	return nil
+}
+
 func validateChannel(input repository.ChannelInput, requireKey bool) error {
 	if input.Name == "" || input.BaseURL == "" {
 		return errors.New("name and base_url are required")
 	}
-	if input.ProviderType != "openai" && input.ProviderType != "claude" && input.ProviderType != "gemini" && input.ProviderType != "custom" {
+	if input.ProviderType != "openai" && input.ProviderType != "anthropic" {
 		return errors.New("invalid provider_type")
 	}
 	if requireKey && input.APIKey == "" {
@@ -109,8 +136,12 @@ func validateChannel(input repository.ChannelInput, requireKey bool) error {
 }
 
 func normalizeChannel(input repository.ChannelInput) repository.ChannelInput {
+	input.ProviderType = strings.ToLower(strings.TrimSpace(input.ProviderType))
 	if input.ProviderType == "" {
 		input.ProviderType = "openai"
+	}
+	if input.ProviderType == "claude" {
+		input.ProviderType = "anthropic"
 	}
 	if input.Status == "" {
 		input.Status = "enabled"

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"lingshu/backend/internal/dto"
 	"lingshu/backend/internal/middleware"
 	"lingshu/backend/internal/pkg/httpx"
 	"lingshu/backend/internal/service"
@@ -24,7 +25,7 @@ func (h ReportHandler) Logs(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+	httpx.JSON(w, http.StatusOK, map[string]any{"items": dto.NewUserGatewayLogDTOs(items)})
 }
 
 func (h ReportHandler) Ledger(w http.ResponseWriter, r *http.Request) {
@@ -34,7 +35,7 @@ func (h ReportHandler) Ledger(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+	httpx.JSON(w, http.StatusOK, map[string]any{"items": dto.NewUserLedgerRecordDTOs(items)})
 }
 
 func (h ReportHandler) Daily(w http.ResponseWriter, r *http.Request) {
@@ -45,7 +46,7 @@ func (h ReportHandler) Daily(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+	httpx.JSON(w, http.StatusOK, map[string]any{"items": dto.NewUserDailyStatDTOs(items)})
 }
 
 func (h ReportHandler) Models(w http.ResponseWriter, r *http.Request) {
@@ -55,5 +56,5 @@ func (h ReportHandler) Models(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+	httpx.JSON(w, http.StatusOK, map[string]any{"items": dto.NewUserModelStatDTOs(items)})
 }

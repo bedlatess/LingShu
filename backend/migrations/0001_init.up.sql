@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS models (
 CREATE TABLE IF NOT EXISTS upstream_channels (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
-    provider_type TEXT NOT NULL CHECK (provider_type IN ('openai', 'claude', 'gemini', 'custom')),
+    provider_type TEXT NOT NULL CHECK (provider_type IN ('openai', 'anthropic')),
     base_url TEXT NOT NULL,
     api_key_encrypted TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'enabled' CHECK (status IN ('enabled', 'disabled')),

@@ -1,5 +1,12 @@
 export type Role = "admin" | "user";
 
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 export interface HealthResponse {
   status: string;
   database: string;
@@ -98,6 +105,7 @@ export interface RedeemCode {
 
 export interface GatewayLog {
   request_id: string;
+  user_id?: string;
   model_id: string;
   status: string;
   http_status: number;
@@ -108,6 +116,7 @@ export interface GatewayLog {
 }
 
 export interface LedgerRecord {
+  user_id?: string;
   type: string;
   amount: string;
   balance_before: string;
@@ -135,6 +144,61 @@ export interface ModelStat {
   total_tokens: number;
   base_cost: string;
   charge: string;
+}
+
+export interface ModelChannelBinding {
+  id: string;
+  channel_id: string;
+  channel_name: string;
+  provider_type: string;
+  base_url: string;
+  upstream_model_name: string;
+  status: string;
+  created_at: string;
+}
+
+export interface ModelDetail {
+  model: ModelConfig;
+  channels: ModelChannelBinding[];
+  stats: {
+    requests: number;
+    successes: number;
+    failures: number;
+    base_cost: string;
+    charge: string;
+    gross_profit: string;
+  };
+}
+
+export interface ChannelDetailBinding {
+  id: string;
+  model_id: string;
+  model_name: string;
+  upstream_model_name: string;
+  status: string;
+  created_at: string;
+}
+
+export interface ChannelDetail {
+  channel: Channel;
+  models: ChannelDetailBinding[];
+  stats: {
+    requests: number;
+    successes: number;
+    failures: number;
+    average_latency: string;
+  };
+}
+
+export interface ReportRow {
+  key: string;
+  label: string;
+  requests: number;
+  successes: number;
+  failures: number;
+  base_cost: string;
+  charge: string;
+  gross_profit: string;
 }
 
 export interface AdminDashboard {

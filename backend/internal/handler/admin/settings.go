@@ -2,6 +2,8 @@ package admin
 
 import (
 	"net/http"
+	"strings"
+	"time"
 
 	"lingshu/backend/internal/middleware"
 	"lingshu/backend/internal/pkg/httpx"
@@ -19,12 +21,13 @@ func NewSettingsHandler(settings service.SettingsService, audits repository.Audi
 }
 
 func (h SettingsHandler) List(w http.ResponseWriter, r *http.Request) {
-	items, err := h.settings.List(r.Context())
+	page, limit := parsePagination(r)
+	items, total, err := h.settings.ListPaged(r.Context(), page, limit)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+	writePagedJSON(w, items, total, page, limit)
 }
 
 func (h SettingsHandler) Patch(w http.ResponseWriter, r *http.Request) {
@@ -45,10 +48,57 @@ func (h SettingsHandler) Patch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h SettingsHandler) AuditLogs(w http.ResponseWriter, r *http.Request) {
-	items, err := h.audits.List(r.Context(), 100)
+	page, limit := parsePagination(r)
+	filter, err := parseAuditLogFilter(r)
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	items, total, err := h.settings.AuditLogsPaged(r.Context(), filter, page, limit)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+	writePagedJSON(w, items, total, page, limit)
+}
+
+func parseAuditLogFilter(r *http.Request) (repository.AuditLogFilter, error) {
+	query := r.URL.Query()
+	filter := repository.AuditLogFilter{
+		ActorID:    strings.TrimSpace(query.Get("actor_id")),
+		Action:     strings.TrimSpace(query.Get("action")),
+		TargetType: strings.TrimSpace(query.Get("target_type")),
+	}
+
+	from, err := parseAuditTime(query.Get("from"))
+	if err != nil {
+		return repository.AuditLogFilter{}, err
+	}
+	to, err := parseAuditTime(query.Get("to"))
+	if err != nil {
+		return repository.AuditLogFilter{}, err
+	}
+	filter.From = from
+	if to != nil && len(strings.TrimSpace(query.Get("to"))) == len("2006-01-02") {
+		adjusted := to.Add(24*time.Hour - time.Nanosecond)
+		filter.To = &adjusted
+	} else {
+		filter.To = to
+	}
+	return filter, nil
+}
+
+func parseAuditTime(value string) (*time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		if parsed, errRFC3339 := time.Parse(time.RFC3339, value); errRFC3339 == nil {
+			return &parsed, nil
+		}
+		return nil, err
+	}
+	return &parsed, nil
 }

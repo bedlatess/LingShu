@@ -23,6 +23,16 @@ type Usage struct {
 	TotalTokens      int `json:"total_tokens"`
 }
 
+type OpenAIAdapter struct{}
+
+func (OpenAIAdapter) ForwardChat(ctx context.Context, baseURL, apiKey string, timeoutSeconds int, rawBody []byte, upstreamModelName string) (ChatResponse, error) {
+	return ForwardChat(ctx, baseURL, apiKey, timeoutSeconds, PrepareOpenAIBody(rawBody, upstreamModelName))
+}
+
+func (OpenAIAdapter) OpenChatStream(ctx context.Context, baseURL, apiKey string, timeoutSeconds int, rawBody []byte, upstreamModelName string) (*http.Response, error) {
+	return OpenChatStream(ctx, baseURL, apiKey, timeoutSeconds, PrepareOpenAIBody(rawBody, upstreamModelName))
+}
+
 func ForwardChat(ctx context.Context, baseURL, apiKey string, timeoutSeconds int, body []byte) (ChatResponse, error) {
 	timeout := time.Duration(timeoutSeconds) * time.Second
 	if timeout <= 0 {
@@ -62,6 +72,39 @@ func OpenChatStream(ctx context.Context, baseURL, apiKey string, timeoutSeconds 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	return client.Do(req)
+}
+
+func PrepareOpenAIBody(rawBody []byte, upstreamModelName string) []byte {
+	var payload map[string]any
+	if err := json.Unmarshal(rawBody, &payload); err != nil {
+		return rawBody
+	}
+	changed := false
+	if name := strings.TrimSpace(upstreamModelName); name != "" {
+		payload["model"] = name
+		changed = true
+	}
+	// Streaming billing depends on real upstream usage. OpenAI-compatible
+	// providers usually emit it only when include_usage is explicitly set.
+	if stream, _ := payload["stream"].(bool); stream {
+		opts, ok := payload["stream_options"].(map[string]any)
+		if !ok {
+			opts = map[string]any{}
+		}
+		if _, exists := opts["include_usage"]; !exists {
+			opts["include_usage"] = true
+			payload["stream_options"] = opts
+			changed = true
+		}
+	}
+	if !changed {
+		return rawBody
+	}
+	out, err := json.Marshal(payload)
+	if err != nil {
+		return rawBody
+	}
+	return out
 }
 
 func extractUsage(body []byte) Usage {

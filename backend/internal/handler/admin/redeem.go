@@ -19,12 +19,13 @@ func NewRedeemHandler(redeems service.RedeemService) RedeemHandler {
 }
 
 func (h RedeemHandler) List(w http.ResponseWriter, r *http.Request) {
-	items, err := h.redeems.List(r.Context())
+	page, limit := parsePagination(r)
+	items, total, err := h.redeems.ListPaged(r.Context(), page, limit)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+	writePagedJSON(w, items, total, page, limit)
 }
 
 func (h RedeemHandler) Create(w http.ResponseWriter, r *http.Request) {

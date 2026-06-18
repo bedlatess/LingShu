@@ -28,12 +28,15 @@ type UserModelPrice struct {
 	OutputUnitPrice  string `json:"output_unit_price"`
 	CallUnitPrice    string `json:"call_unit_price"`
 	Status           string `json:"status"`
+	SortOrder        int    `json:"sort_order"`
 }
 
 type UserDashboard struct {
 	Balance         string `json:"balance"`
 	TodayCharge     string `json:"today_charge"`
 	MonthCharge     string `json:"month_charge"`
+	TotalCharge     string `json:"total_charge"`
+	TotalRecharge   string `json:"total_recharge"`
 	Frozen          string `json:"frozen"`
 	AvailableModels int    `json:"available_models"`
 	TodayRequests   int    `json:"today_requests"`
@@ -67,6 +70,7 @@ func (s UserPortalService) Models(ctx context.Context) ([]UserModelPrice, error)
 			OutputUnitPrice:  decimalMul(item.OutputPricePer1K, item.RateMultiplier),
 			CallUnitPrice:    decimalMul(item.PricePerCall, item.RateMultiplier),
 			Status:           item.Status,
+			SortOrder:        item.SortOrder,
 		})
 	}
 	return out, nil
@@ -90,6 +94,8 @@ func (s UserPortalService) Dashboard(ctx context.Context, userID string) (UserDa
 		Balance:         user.Balance,
 		TodayCharge:     stats.TodayCharge,
 		MonthCharge:     stats.MonthCharge,
+		TotalCharge:     stats.TotalCharge,
+		TotalRecharge:   stats.TotalRecharge,
 		Frozen:          unitsToDecimalString(frozen),
 		AvailableModels: len(models),
 		TodayRequests:   stats.TodayRequests,

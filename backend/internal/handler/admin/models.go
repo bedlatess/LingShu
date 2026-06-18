@@ -20,12 +20,22 @@ func NewModelHandler(models service.ModelService) ModelHandler {
 }
 
 func (h ModelHandler) List(w http.ResponseWriter, r *http.Request) {
-	items, err := h.models.List(r.Context())
+	page, limit := parsePagination(r)
+	items, total, err := h.models.ListPaged(r.Context(), page, limit)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+	writePagedJSON(w, items, total, page, limit)
+}
+
+func (h ModelHandler) Detail(w http.ResponseWriter, r *http.Request) {
+	item, err := h.models.Detail(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusNotFound, err.Error())
+		return
+	}
+	httpx.JSON(w, http.StatusOK, item)
 }
 
 func (h ModelHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -61,6 +71,15 @@ func (h ModelHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h ModelHandler) Disable(w http.ResponseWriter, r *http.Request) {
 	current, _ := middleware.CurrentUser(r.Context())
 	if err := h.models.Disable(r.Context(), current.ID, chi.URLParam(r, "id"), clientIP(r), r.UserAgent()); err != nil {
+		httpx.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h ModelHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	current, _ := middleware.CurrentUser(r.Context())
+	if err := h.models.Delete(r.Context(), current.ID, chi.URLParam(r, "id"), clientIP(r), r.UserAgent()); err != nil {
 		httpx.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}

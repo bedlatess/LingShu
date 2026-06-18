@@ -1,6 +1,7 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowRight, KeyRound, ShieldCheck, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,9 +28,12 @@ export function LoginPage() {
     setLoading(true);
     try {
       await login(loginName, password);
+      toast.success("登录成功");
       navigate(from, { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "登录失败");
+      const message = err instanceof Error ? err.message : "登录失败";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -41,16 +45,16 @@ export function LoginPage() {
         <section className="flex flex-col justify-between rounded-lg border border-white/10 bg-white/[0.035] p-8 backdrop-blur-xl">
           <div>
             <div className="mb-8 grid h-11 w-11 place-items-center rounded-lg bg-primary text-sm font-black text-primary-foreground shadow-glow">LS</div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-primary">LingShu API Console</p>
-            <h1 className="max-w-2xl text-5xl font-semibold tracking-[-0.04em] text-foreground md:text-7xl">A calm cockpit for private AI traffic.</h1>
+            <p className="mb-3 text-xs font-semibold text-primary">灵枢 API 控制台</p>
+            <h1 className="max-w-2xl text-5xl font-semibold text-foreground md:text-7xl">私有 AI 网关，安全可控。</h1>
             <p className="mt-5 max-w-xl text-sm leading-6 text-muted-foreground">
-              查看余额、创建平台 API Key、追踪扣费和倍率毛利链路。登录后所有数据来自你的 LingShu 账户。
+              查看余额、创建平台 API 密钥、了解调用和消费情况。登录后所有数据来自你的灵枢账户。
             </p>
           </div>
           <div className="mt-12 grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
-            <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4"><ShieldCheck className="mb-3 h-5 w-5 text-primary" />余额事务行锁</div>
-            <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4"><KeyRound className="mb-3 h-5 w-5 text-violet-300" />Key 明文仅一次</div>
-            <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4"><Sparkles className="mb-3 h-5 w-5 text-sky-300" />倍率扣费可追溯</div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4"><ShieldCheck className="mb-3 h-5 w-5 text-primary" />余额实时消费</div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4"><KeyRound className="mb-3 h-5 w-5 text-violet-300" />密钥安全管理</div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4"><Sparkles className="mb-3 h-5 w-5 text-sky-300" />统一模型接入</div>
           </div>
         </section>
 
@@ -58,16 +62,16 @@ export function LoginPage() {
           <CardContent className="p-6">
             <div className="mb-6">
               <h2 className="text-xl font-semibold">登录用户端</h2>
-              <p className="mt-2 text-sm text-muted-foreground">使用用户名或邮箱登录，不再粘贴 JWT。</p>
+              <p className="mt-2 text-sm text-muted-foreground">使用用户名或邮箱登录。</p>
             </div>
             <form className="grid gap-4" onSubmit={onSubmit}>
               <label className="grid gap-2 text-sm">
                 账号
-                <Input value={loginName} onChange={(event) => setLoginName(event.target.value)} autoComplete="username" placeholder="username or email" required />
+                <Input value={loginName} onChange={(event) => setLoginName(event.target.value)} autoComplete="username" placeholder="用户名或邮箱" required />
               </label>
               <label className="grid gap-2 text-sm">
                 密码
-                <Input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" placeholder="password" required />
+                <Input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" placeholder="请输入密码" required />
               </label>
               {error ? <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-foreground">{error}</div> : null}
               <Button type="submit" disabled={loading}>

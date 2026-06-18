@@ -41,20 +41,56 @@ type ModelRepository struct {
 	db *pgxpool.Pool
 }
 
+type ModelChannelBinding struct {
+	ID                string    `json:"id"`
+	ChannelID         string    `json:"channel_id"`
+	ChannelName       string    `json:"channel_name"`
+	ProviderType      string    `json:"provider_type"`
+	BaseURL           string    `json:"base_url"`
+	UpstreamModelName string    `json:"upstream_model_name"`
+	Status            string    `json:"status"`
+	CreatedAt         time.Time `json:"created_at"`
+}
+
+type ModelDetailStats struct {
+	Requests    int    `json:"requests"`
+	Successes   int    `json:"successes"`
+	Failures    int    `json:"failures"`
+	BaseCost    string `json:"base_cost"`
+	Charge      string `json:"charge"`
+	GrossProfit string `json:"gross_profit"`
+}
+
+type ModelDetail struct {
+	Model    Model                 `json:"model"`
+	Channels []ModelChannelBinding `json:"channels"`
+	Stats    ModelDetailStats      `json:"stats"`
+}
+
 func NewModelRepository(db *pgxpool.Pool) ModelRepository {
 	return ModelRepository{db: db}
 }
 
 func (r ModelRepository) List(ctx context.Context) ([]Model, error) {
+	items, _, err := r.ListPaged(ctx, 100, 0)
+	return items, err
+}
+
+func (r ModelRepository) ListPaged(ctx context.Context, limit, offset int) ([]Model, int, error) {
+	var total int
+	if err := r.db.QueryRow(ctx, `SELECT count(*)::int FROM models`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
 	rows, err := r.db.Query(ctx, `
 		SELECT id::text, public_name, type, model_group, billing_mode,
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
 		       rate_multiplier::text, status, sort_order, created_at, updated_at
 		FROM models
 		ORDER BY sort_order ASC, created_at DESC
-	`)
+		LIMIT $1 OFFSET $2
+	`, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -62,11 +98,69 @@ func (r ModelRepository) List(ctx context.Context) ([]Model, error) {
 	for rows.Next() {
 		item, err := scanModel(rows)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		items = append(items, item)
 	}
-	return items, rows.Err()
+	return items, total, rows.Err()
+}
+
+func (r ModelRepository) FindByID(ctx context.Context, id string) (Model, error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT id::text, public_name, type, model_group, billing_mode,
+		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
+		       rate_multiplier::text, status, sort_order, created_at, updated_at
+		FROM models
+		WHERE id=$1
+	`, id)
+	return scanModel(row)
+}
+
+func (r ModelRepository) Detail(ctx context.Context, id string) (ModelDetail, error) {
+	model, err := r.FindByID(ctx, id)
+	if err != nil {
+		return ModelDetail{}, err
+	}
+
+	rows, err := r.db.Query(ctx, `
+		SELECT cm.id::text, cm.channel_id::text, c.name, c.provider_type, c.base_url,
+		       cm.upstream_model_name, cm.status, cm.created_at
+		FROM channel_models cm
+		JOIN upstream_channels c ON c.id = cm.channel_id
+		WHERE cm.model_id=$1
+		ORDER BY cm.created_at DESC
+	`, id)
+	if err != nil {
+		return ModelDetail{}, err
+	}
+	defer rows.Close()
+	channels := []ModelChannelBinding{}
+	for rows.Next() {
+		var item ModelChannelBinding
+		if err := rows.Scan(&item.ID, &item.ChannelID, &item.ChannelName, &item.ProviderType, &item.BaseURL, &item.UpstreamModelName, &item.Status, &item.CreatedAt); err != nil {
+			return ModelDetail{}, err
+		}
+		channels = append(channels, item)
+	}
+	if err := rows.Err(); err != nil {
+		return ModelDetail{}, err
+	}
+
+	var stats ModelDetailStats
+	if err := r.db.QueryRow(ctx, `
+		SELECT count(*)::int,
+		       count(*) FILTER (WHERE status='success')::int,
+		       count(*) FILTER (WHERE status!='success')::int,
+		       COALESCE(sum(base_cost),0)::text,
+		       COALESCE(sum(charge),0)::text,
+		       COALESCE(sum(charge - base_cost),0)::text
+		FROM gateway_requests
+		WHERE model_id=$1
+	`, id).Scan(&stats.Requests, &stats.Successes, &stats.Failures, &stats.BaseCost, &stats.Charge, &stats.GrossProfit); err != nil {
+		return ModelDetail{}, err
+	}
+
+	return ModelDetail{Model: model, Channels: channels, Stats: stats}, nil
 }
 
 func (r ModelRepository) Create(ctx context.Context, input ModelInput) (Model, error) {
@@ -107,6 +201,10 @@ func (r ModelRepository) Disable(ctx context.Context, id string) error {
 		return pgx.ErrNoRows
 	}
 	return nil
+}
+
+func (r ModelRepository) Delete(ctx context.Context, id string) error {
+	return r.Disable(ctx, id)
 }
 
 type modelScanner interface {

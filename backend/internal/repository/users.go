@@ -85,6 +85,33 @@ func (r UserRepository) List(ctx context.Context) ([]User, error) {
 	return users, rows.Err()
 }
 
+func (r UserRepository) ListPaged(ctx context.Context, limit, offset int) ([]User, int, error) {
+	var total int
+	if err := r.db.QueryRow(ctx, `SELECT count(*)::int FROM users`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT id::text, username, COALESCE(email, ''), password_hash, role, status, balance::text, created_at, updated_at, last_login_at
+		FROM users
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2
+	`, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	users := []User{}
+	for rows.Next() {
+		user, err := scanUser(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		users = append(users, user)
+	}
+	return users, total, rows.Err()
+}
+
 func (r UserRepository) Create(ctx context.Context, params CreateUserParams) (User, error) {
 	row := r.db.QueryRow(ctx, `
 		INSERT INTO users (username, email, password_hash, role, status)

@@ -36,6 +36,14 @@ type AuditLog struct {
 	CreatedAt  time.Time       `json:"created_at"`
 }
 
+type AuditLogFilter struct {
+	ActorID    string
+	Action     string
+	TargetType string
+	From       *time.Time
+	To         *time.Time
+}
+
 func NewAuditRepository(db *pgxpool.Pool) AuditRepository {
 	return AuditRepository{db: db}
 }
@@ -60,25 +68,51 @@ func (r AuditRepository) List(ctx context.Context, limit int) ([]AuditLog, error
 	if limit <= 0 || limit > 200 {
 		limit = 100
 	}
+	items, _, err := r.ListPaged(ctx, limit, 0)
+	return items, err
+}
+
+func (r AuditRepository) ListPaged(ctx context.Context, limit, offset int) ([]AuditLog, int, error) {
+	return r.ListPagedFiltered(ctx, AuditLogFilter{}, limit, offset)
+}
+
+func (r AuditRepository) ListPagedFiltered(ctx context.Context, filter AuditLogFilter, limit, offset int) ([]AuditLog, int, error) {
+	var total int
+	if err := r.db.QueryRow(ctx, `
+		SELECT count(*)::int
+		FROM audit_logs
+		WHERE ($1 = '' OR actor_id::text = $1)
+		  AND ($2 = '' OR action = $2)
+		  AND ($3 = '' OR target_type = $3)
+		  AND ($4::timestamptz IS NULL OR created_at >= $4)
+		  AND ($5::timestamptz IS NULL OR created_at <= $5)
+	`, filter.ActorID, filter.Action, filter.TargetType, filter.From, filter.To).Scan(&total); err != nil {
+		return nil, 0, err
+	}
 	rows, err := r.db.Query(ctx, `
 		SELECT id::text, COALESCE(actor_id::text, ''), action, target_type, COALESCE(target_id::text, ''),
 		       COALESCE(before_snapshot, '{}'::jsonb), COALESCE(after_snapshot, '{}'::jsonb),
 		       COALESCE(ip::text, ''), COALESCE(user_agent, ''), created_at
 		FROM audit_logs
+		WHERE ($1 = '' OR actor_id::text = $1)
+		  AND ($2 = '' OR action = $2)
+		  AND ($3 = '' OR target_type = $3)
+		  AND ($4::timestamptz IS NULL OR created_at >= $4)
+		  AND ($5::timestamptz IS NULL OR created_at <= $5)
 		ORDER BY created_at DESC
-		LIMIT $1
-	`, limit)
+		LIMIT $6 OFFSET $7
+	`, filter.ActorID, filter.Action, filter.TargetType, filter.From, filter.To, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 	items := []AuditLog{}
 	for rows.Next() {
 		var item AuditLog
 		if err := rows.Scan(&item.ID, &item.ActorID, &item.Action, &item.TargetType, &item.TargetID, &item.Before, &item.After, &item.IP, &item.UserAgent, &item.CreatedAt); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		items = append(items, item)
 	}
-	return items, rows.Err()
+	return items, total, rows.Err()
 }

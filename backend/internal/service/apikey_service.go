@@ -33,8 +33,16 @@ func (s APIKeyService) ListForUser(ctx context.Context, userID string) ([]reposi
 	return s.keys.ListByUser(ctx, userID)
 }
 
+func (s APIKeyService) ListForUserPaged(ctx context.Context, userID string, page, limit int) ([]repository.APIKey, int, error) {
+	return s.keys.ListByUserPaged(ctx, userID, limit, (page-1)*limit)
+}
+
 func (s APIKeyService) ListAll(ctx context.Context) ([]repository.APIKey, error) {
 	return s.keys.ListAll(ctx)
+}
+
+func (s APIKeyService) ListAllPaged(ctx context.Context, page, limit int) ([]repository.APIKey, int, error) {
+	return s.keys.ListAllPaged(ctx, limit, (page-1)*limit)
 }
 
 func (s APIKeyService) Create(ctx context.Context, actorID string, input CreateAPIKeyInput, ip, userAgent string) (CreatedAPIKey, error) {
@@ -110,6 +118,21 @@ func (s APIKeyService) Disable(ctx context.Context, actorID, id, ip, userAgent s
 	_ = s.audits.Write(ctx, repository.AuditEntry{
 		ActorID:    actorID,
 		Action:     "admin.apikey.disable",
+		TargetType: "api_key",
+		TargetID:   id,
+		IP:         ip,
+		UserAgent:  userAgent,
+	})
+	return nil
+}
+
+func (s APIKeyService) Delete(ctx context.Context, actorID, id, ip, userAgent string) error {
+	if err := s.keys.Delete(ctx, id); err != nil {
+		return err
+	}
+	_ = s.audits.Write(ctx, repository.AuditEntry{
+		ActorID:    actorID,
+		Action:     "admin.apikey.delete",
 		TargetType: "api_key",
 		TargetID:   id,
 		IP:         ip,

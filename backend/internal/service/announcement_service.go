@@ -20,6 +20,10 @@ func (s AnnouncementService) ListAdmin(ctx context.Context) ([]repository.Announ
 	return s.announcements.ListAdmin(ctx)
 }
 
+func (s AnnouncementService) ListAdminPaged(ctx context.Context, page, limit int) ([]repository.Announcement, int, error) {
+	return s.announcements.ListAdminPaged(ctx, limit, (page-1)*limit)
+}
+
 func (s AnnouncementService) ListOnline(ctx context.Context) ([]repository.Announcement, error) {
 	return s.announcements.ListOnline(ctx)
 }

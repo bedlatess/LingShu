@@ -40,6 +40,14 @@ func (s AdminUserService) List(ctx context.Context) ([]repository.User, error) {
 	return s.users.List(ctx)
 }
 
+func (s AdminUserService) ListPaged(ctx context.Context, page, limit int) ([]repository.User, int, error) {
+	return s.users.ListPaged(ctx, limit, (page-1)*limit)
+}
+
+func (s AdminUserService) Get(ctx context.Context, id string) (repository.User, error) {
+	return s.users.FindByID(ctx, id)
+}
+
 func (s AdminUserService) Create(ctx context.Context, actorID string, input CreateUserInput, ip, userAgent string) (repository.User, error) {
 	if strings.TrimSpace(input.Username) == "" || len(input.Password) < 8 {
 		return repository.User{}, errors.New("username and password with at least 8 characters are required")

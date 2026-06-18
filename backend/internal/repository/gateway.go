@@ -24,6 +24,7 @@ type GatewayModel struct {
 
 type GatewayChannel struct {
 	ID                string
+	ProviderType      string
 	BaseURL           string
 	APIKeyEncrypted   string
 	UpstreamModelName string
@@ -101,7 +102,7 @@ func (r GatewayRepository) FindEnabledModel(ctx context.Context, publicName stri
 
 func (r GatewayRepository) ListCandidateChannels(ctx context.Context, modelID string) ([]GatewayChannel, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT c.id::text, c.base_url, c.api_key_encrypted, COALESCE(cm.upstream_model_name, ''),
+		SELECT c.id::text, c.provider_type, c.base_url, c.api_key_encrypted, COALESCE(cm.upstream_model_name, ''),
 		       c.weight, c.timeout_seconds, c.rpm_limit, c.concurrency_limit, c.fail_threshold
 		FROM upstream_channels c
 		JOIN channel_models cm ON cm.channel_id = c.id AND cm.model_id=$1 AND cm.status='enabled'
@@ -116,7 +117,7 @@ func (r GatewayRepository) ListCandidateChannels(ctx context.Context, modelID st
 	items := []GatewayChannel{}
 	for rows.Next() {
 		var item GatewayChannel
-		if err := rows.Scan(&item.ID, &item.BaseURL, &item.APIKeyEncrypted, &item.UpstreamModelName, &item.Weight, &item.TimeoutSeconds, &item.RPMLimit, &item.ConcurrencyLimit, &item.FailThreshold); err != nil {
+		if err := rows.Scan(&item.ID, &item.ProviderType, &item.BaseURL, &item.APIKeyEncrypted, &item.UpstreamModelName, &item.Weight, &item.TimeoutSeconds, &item.RPMLimit, &item.ConcurrencyLimit, &item.FailThreshold); err != nil {
 			return nil, err
 		}
 		items = append(items, item)

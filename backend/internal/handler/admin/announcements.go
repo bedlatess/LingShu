@@ -20,12 +20,13 @@ func NewAnnouncementHandler(announcements service.AnnouncementService) Announcem
 }
 
 func (h AnnouncementHandler) List(w http.ResponseWriter, r *http.Request) {
-	items, err := h.announcements.ListAdmin(r.Context())
+	page, limit := parsePagination(r)
+	items, total, err := h.announcements.ListAdminPaged(r.Context(), page, limit)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+	writePagedJSON(w, items, total, page, limit)
 }
 
 func (h AnnouncementHandler) Create(w http.ResponseWriter, r *http.Request) {

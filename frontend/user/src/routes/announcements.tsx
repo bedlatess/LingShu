@@ -1,6 +1,6 @@
 import React from "react";
 import { Bell, Pin } from "lucide-react";
-import type { Announcement } from "@lingshu/shared";
+import type { Announcement } from "@lingshu/shared/user-types";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,7 +18,7 @@ export function AnnouncementsPage() {
 
   return (
     <div className="page-grid">
-      <PageHeader eyebrow="Announcements" title="公告和运营通知" description="管理员发布的服务说明、联系方式或维护通知会展示在这里。" />
+      <PageHeader eyebrow="公告" title="公告和通知" description="服务说明、联系方式或维护通知会展示在这里。" />
       {items.length === 0 ? (
         <EmptyState title="暂无公告" description="当前没有在线公告。" />
       ) : (

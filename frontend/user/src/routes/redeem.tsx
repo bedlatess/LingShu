@@ -1,6 +1,6 @@
 import React from "react";
 import { Gift, Ticket } from "lucide-react";
-import type { LedgerRecord } from "@lingshu/shared";
+import type { UserLedgerRecord } from "@lingshu/shared/user-types";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,12 +9,14 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { useAuth } from "@/providers/auth";
 import { formatMoney } from "@/lib/utils";
+import { zhLedgerType } from "@/lib/i18n";
+import { toast } from "sonner";
 
 export function RedeemPage() {
   const { api, refreshMe } = useAuth();
   const [code, setCode] = React.useState("");
   const [message, setMessage] = React.useState("");
-  const [ledger, setLedger] = React.useState<LedgerRecord[]>([]);
+  const [ledger, setLedger] = React.useState<UserLedgerRecord[]>([]);
 
   async function refresh() {
     const result = await api.userLedger();
@@ -28,15 +30,21 @@ export function RedeemPage() {
   async function redeem(event: React.FormEvent) {
     event.preventDefault();
     setMessage("");
-    const result = await api.redeem(code);
-    setCode("");
-    setMessage(`兑换成功，入账 ${formatMoney(result.amount)}`);
-    await Promise.all([refresh(), refreshMe()]);
+    try {
+      const result = await api.redeem(code);
+      setCode("");
+      setMessage(`兑换成功，入账 ${formatMoney(result.amount)}`);
+      toast.success(`兑换成功，入账 ${formatMoney(result.amount)} 元`);
+      await Promise.all([refresh(), refreshMe()]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "兑换失败";
+      toast.error("兑换失败：" + message);
+    }
   }
 
   return (
     <div className="page-grid">
-      <PageHeader eyebrow="Redeem" title="兑换码充值" description="私有运营不接在线支付。余额来源只有管理员手动充值和兑换码。" />
+      <PageHeader eyebrow="充值兑换" title="兑换码充值" description="请输入管理员提供的兑换码进行充值。" />
       <Card className="glass overflow-hidden">
         <CardContent className="grid gap-6 p-6 lg:grid-cols-[1fr_0.75fr]">
           <form className="grid content-start gap-4" onSubmit={redeem}>
@@ -47,7 +55,7 @@ export function RedeemPage() {
             <Button type="submit"><Gift className="h-4 w-4" />兑换</Button>
           </form>
           <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
-            <p className="text-sm text-muted-foreground">兑换成功后，账本会同时记录 `redeem` 类型，余额变动可追溯。</p>
+            <p className="text-sm text-muted-foreground">兑换成功后余额即时到账。</p>
           </div>
         </CardContent>
       </Card>
@@ -57,7 +65,7 @@ export function RedeemPage() {
         <CardContent className="grid gap-3">
           {ledger.length ? ledger.slice(0, 8).map((item) => (
             <div key={`${item.type}-${item.created_at}`} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.035] p-3">
-              <div><p className="text-sm font-medium">{item.type}</p><p className="text-xs text-muted-foreground">{item.remark}</p></div>
+              <div><p className="text-sm font-medium">{zhLedgerType(item.type)}</p><p className="text-xs text-muted-foreground">{item.remark}</p></div>
               <strong className="text-sm">{formatMoney(item.amount)}</strong>
             </div>
           )) : <EmptyState title="暂无账本" description="兑换或调用后，账本记录会展示在这里。" />}

@@ -1,4 +1,4 @@
-import { Activity, Bell, Gauge, KeyRound, LogOut, MessageSquareText, PanelTop, Settings, Sparkles, Ticket, WalletCards } from "lucide-react";
+import { Activity, Bell, Gauge, KeyRound, LogOut, PanelTop, Settings, Sparkles, Ticket, WalletCards } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -6,13 +6,13 @@ import { useAuth } from "@/providers/auth";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { to: "/dashboard", label: "Dashboard", icon: Gauge },
-  { to: "/api-keys", label: "API Keys", icon: KeyRound },
-  { to: "/usage", label: "Usage", icon: Activity },
-  { to: "/models", label: "Models", icon: PanelTop },
-  { to: "/redeem", label: "Redeem", icon: Ticket },
-  { to: "/announcements", label: "News", icon: Bell },
-  { to: "/settings", label: "Settings", icon: Settings }
+  { to: "/dashboard", label: "概览", icon: Gauge },
+  { to: "/api-keys", label: "API 密钥", icon: KeyRound },
+  { to: "/usage", label: "用量", icon: Activity },
+  { to: "/models", label: "模型", icon: PanelTop },
+  { to: "/redeem", label: "充值兑换", icon: Ticket },
+  { to: "/announcements", label: "公告", icon: Bell },
+  { to: "/settings", label: "设置", icon: Settings }
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -26,15 +26,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-sm font-black text-primary-foreground shadow-glow">LS</div>
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold">
-                LingShu Console <Sparkles className="h-3.5 w-3.5 text-primary" />
+                灵枢控制台 <Sparkles className="h-3.5 w-3.5 text-primary" />
               </div>
-              <p className="text-xs text-muted-foreground">Private AI API gateway</p>
+              <p className="text-xs text-muted-foreground">私有 AI 接入服务</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-muted-foreground sm:flex">
               <WalletCards className="h-4 w-4 text-primary" />
-              {user?.username ?? "Loading"}
+              {user?.username ?? "加载中"}
             </div>
             <Button variant="ghost" size="icon" onClick={logout} title="退出登录">
               <LogOut className="h-4 w-4" />

@@ -1,5 +1,7 @@
 import React from "react";
-import { createAPI, type User } from "@lingshu/shared";
+import { createAPI } from "@lingshu/shared";
+import type { User } from "@lingshu/shared/user-types";
+import { toast } from "sonner";
 
 type AuthContextValue = {
   token: string;
@@ -18,13 +20,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const api = React.useMemo(() => createAPI(token), [token]);
 
   async function login(loginName: string, password: string) {
-    const result = await createAPI().login(loginName, password);
-    if (result.user.role !== "user") {
-      throw new Error("请使用普通用户账号登录用户端");
+    try {
+      const result = await createAPI().login(loginName, password);
+      if (result.user.role !== "user") {
+        throw new Error("请使用普通用户账号登录用户端");
+      }
+      localStorage.setItem("lingshu_user_token", result.token);
+      setToken(result.token);
+      setUser(result.user);
+      toast.success("登录成功");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "登录失败";
+      toast.error(`登录失败：${message}`);
+      throw err;
     }
-    localStorage.setItem("lingshu_user_token", result.token);
-    setToken(result.token);
-    setUser(result.user);
   }
 
   function logout() {
@@ -38,13 +47,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const me = await api.me();
     if (me.role !== "user") {
       logout();
+      window.location.replace("/login");
       throw new Error("当前账号不是普通用户");
     }
     setUser(me);
   }
 
   React.useEffect(() => {
+    const onUnauthorized = () => {
+      logout();
+      window.location.replace("/login");
+    };
+    window.addEventListener("lingshu:unauthorized", onUnauthorized as EventListener);
     refreshMe().catch(() => logout());
+    return () => window.removeEventListener("lingshu:unauthorized", onUnauthorized as EventListener);
   }, [token]);
 
   return <AuthContext.Provider value={{ token, user, api, login, logout, refreshMe }}>{children}</AuthContext.Provider>;
