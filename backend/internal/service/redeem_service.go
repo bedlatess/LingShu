@@ -52,6 +52,7 @@ func (s RedeemService) Create(ctx context.Context, actorID string, input CreateR
 		}
 		item, err := s.redeems.Create(ctx, repository.CreateRedeemCodeInput{
 			CodeHash:   redeemutil.Hash(code),
+			CodePlain:  code,
 			CodePrefix: redeemutil.Prefix(code),
 			BatchName:  input.BatchName,
 			Amount:     input.Amount,
@@ -79,4 +80,8 @@ func (s RedeemService) Disable(ctx context.Context, actorID, id, ip, userAgent s
 
 func (s RedeemService) Redeem(ctx context.Context, userID, code, clientIP string) (repository.RedeemCode, error) {
 	return s.redeems.Redeem(ctx, userID, redeemutil.Hash(code), clientIP)
+}
+
+func (s RedeemService) Records(ctx context.Context, codeID string) ([]repository.RedeemRecord, error) {
+	return s.redeems.Records(ctx, codeID)
 }

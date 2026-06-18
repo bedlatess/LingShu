@@ -82,6 +82,17 @@ func (AnthropicAdapter) ForwardChat(ctx context.Context, baseURL, apiKey string,
 	return ChatResponse{StatusCode: resp.StatusCode, Body: bodyOut, Usage: usage}, nil
 }
 
+func (AnthropicAdapter) ForwardEmbeddings(ctx context.Context, baseURL, apiKey string, timeoutSeconds int, rawBody []byte, upstreamModelName string) (ChatResponse, error) {
+	body, _ := json.Marshal(map[string]any{
+		"error": map[string]any{
+			"message": "Anthropic 协议不支持 /v1/embeddings",
+			"type":    "unsupported_endpoint",
+			"code":    "unsupported_endpoint",
+		},
+	})
+	return ChatResponse{StatusCode: http.StatusBadRequest, Body: body}, nil
+}
+
 func (AnthropicAdapter) OpenChatStream(ctx context.Context, baseURL, apiKey string, timeoutSeconds int, rawBody []byte, upstreamModelName string) (*http.Response, error) {
 	body, err := BuildAnthropicBody(rawBody, upstreamModelName, true)
 	if err != nil {

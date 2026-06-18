@@ -52,12 +52,21 @@ type ModelStat struct {
 }
 
 type AdminDashboard struct {
-	TodayRequests int    `json:"today_requests"`
-	TodayCharge   string `json:"today_charge"`
-	TodayBaseCost string `json:"today_base_cost"`
-	GrossProfit   string `json:"gross_profit"`
-	ActiveUsers   int    `json:"active_users"`
-	BalanceTotal  string `json:"balance_total"`
+	TodayRequests   int    `json:"today_requests"`
+	TodayCharge     string `json:"today_charge"`
+	TodayBaseCost   string `json:"today_base_cost"`
+	GrossProfit     string `json:"gross_profit"`
+	ActiveUsers     int    `json:"active_users"`
+	BalanceTotal    string `json:"balance_total"`
+	TotalUsers      int    `json:"total_users"`
+	TotalChannels   int    `json:"total_channels"`
+	HealthyChannels int    `json:"healthy_channels"`
+	TotalModels     int    `json:"total_models"`
+	EnabledModels   int    `json:"enabled_models"`
+	TodaySuccesses  int    `json:"today_successes"`
+	TodayFailures   int    `json:"today_failures"`
+	ActiveAPIKeys   int    `json:"active_api_keys"`
+	TotalRequests   int    `json:"total_requests"`
 }
 
 type UserDashboardStats struct {
@@ -254,9 +263,18 @@ func (r ReportRepository) AdminDashboard(ctx context.Context) (AdminDashboard, e
 		  COALESCE((SELECT sum(charge) FROM gateway_requests WHERE created_at::date = now()::date),0)::text,
 		  COALESCE((SELECT sum(base_cost) FROM gateway_requests WHERE created_at::date = now()::date),0)::text,
 		  COALESCE((SELECT sum(charge - base_cost) FROM gateway_requests),0)::text,
-		  COALESCE((SELECT count(*) FROM users WHERE status='active'),0)::int,
-		  COALESCE((SELECT sum(balance) FROM users),0)::text
-	`).Scan(&item.TodayRequests, &item.TodayCharge, &item.TodayBaseCost, &item.GrossProfit, &item.ActiveUsers, &item.BalanceTotal)
+		  COALESCE((SELECT count(*) FROM users WHERE status='active' AND deleted_at IS NULL),0)::int,
+		  COALESCE((SELECT sum(balance) FROM users WHERE deleted_at IS NULL),0)::text,
+		  COALESCE((SELECT count(*) FROM users WHERE deleted_at IS NULL),0)::int,
+		  COALESCE((SELECT count(*) FROM upstream_channels WHERE deleted_at IS NULL),0)::int,
+		  COALESCE((SELECT count(*) FROM upstream_channels WHERE deleted_at IS NULL AND health='healthy' AND status='enabled'),0)::int,
+		  COALESCE((SELECT count(*) FROM models WHERE deleted_at IS NULL),0)::int,
+		  COALESCE((SELECT count(*) FROM models WHERE deleted_at IS NULL AND status='enabled'),0)::int,
+		  COALESCE((SELECT count(*) FROM gateway_requests WHERE created_at::date=now()::date AND status='success'),0)::int,
+		  COALESCE((SELECT count(*) FROM gateway_requests WHERE created_at::date=now()::date AND status='failed'),0)::int,
+		  COALESCE((SELECT count(*) FROM api_keys WHERE deleted_at IS NULL AND status='active'),0)::int,
+		  COALESCE((SELECT count(*) FROM gateway_requests),0)::int
+	`).Scan(&item.TodayRequests, &item.TodayCharge, &item.TodayBaseCost, &item.GrossProfit, &item.ActiveUsers, &item.BalanceTotal, &item.TotalUsers, &item.TotalChannels, &item.HealthyChannels, &item.TotalModels, &item.EnabledModels, &item.TodaySuccesses, &item.TodayFailures, &item.ActiveAPIKeys, &item.TotalRequests)
 	return item, err
 }
 

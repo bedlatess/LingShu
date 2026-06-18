@@ -2,10 +2,8 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -96,44 +94,45 @@ func (s ChannelService) Test(ctx context.Context, id, baseURL string) (map[strin
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 
-	url := strings.TrimRight(baseURL, "/") + "/models"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	channel, err := s.channels.FindSecretByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
+	if strings.TrimSpace(baseURL) == "" {
+		baseURL = channel.BaseURL
+	}
+	key := secret.Unprotect(channel.APIKeyEncrypted)
 	start := time.Now()
-	resp, err := http.DefaultClient.Do(req)
+	var statusCode int
+	var models []string
+	if strings.EqualFold(channel.ProviderType, "anthropic") || strings.EqualFold(channel.ProviderType, "claude") {
+		models, statusCode, err = upstream.ProbeAnthropic(ctx, baseURL, key)
+	} else {
+		models, statusCode, err = upstream.ProbeOpenAI(ctx, baseURL, key)
+		if err != nil && !strings.Contains(strings.ToLower(baseURL), "/v") {
+			models, statusCode, err = upstream.ProbeOpenAI(ctx, strings.TrimRight(baseURL, "/")+"/v1", key)
+		}
+	}
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
 		category := "network_error"
 		if errors.Is(err, context.DeadlineExceeded) {
 			category = "timeout"
+		} else if statusCode > 0 {
+			category = categorizeChannelTest(statusCode)
 		}
 		_ = s.channels.MarkTest(ctx, id, false, err.Error(), latency)
-		return map[string]any{"ok": false, "category": category, "message": err.Error(), "latency_ms": latency}, nil
-	}
-	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-	defer resp.Body.Close()
-
-	ok := resp.StatusCode >= 200 && resp.StatusCode < 300
-	message := resp.Status
-	if !ok {
-		var probe struct {
-			Error struct {
-				Message string `json:"message"`
-				Type    string `json:"type"`
-			} `json:"error"`
+		result := map[string]any{"ok": false, "category": category, "message": err.Error(), "latency_ms": latency}
+		if statusCode > 0 {
+			result["status"] = statusCode
 		}
-		if json.Unmarshal(bodyBytes, &probe) == nil && probe.Error.Message != "" {
-			message = fmt.Sprintf("%s - %s", resp.Status, probe.Error.Message)
-		} else if len(bodyBytes) > 0 {
-			message = fmt.Sprintf("%s - %s", resp.Status, strings.TrimSpace(string(bodyBytes)))
-		}
+		return result, nil
 	}
 
-	category := categorizeChannelTest(resp.StatusCode)
-	_ = s.channels.MarkTest(ctx, id, ok, message, latency)
-	return map[string]any{"ok": ok, "status": resp.StatusCode, "category": category, "message": message, "latency_ms": latency}, nil
+	message := fmt.Sprintf("探测成功，样例模型 %d 个", len(models))
+	category := categorizeChannelTest(statusCode)
+	_ = s.channels.MarkTest(ctx, id, true, message, latency)
+	return map[string]any{"ok": true, "status": statusCode, "category": category, "message": message, "latency_ms": latency}, nil
 }
 
 func categorizeChannelTest(status int) string {

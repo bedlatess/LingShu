@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { useAuth } from "@/providers/auth";
 import { zhStatus } from "@/lib/i18n";
+import { copyText } from "@/lib/clipboard";
 import { toast } from "sonner";
 
 export function ApiKeysPage() {
@@ -38,25 +39,29 @@ export function ApiKeysPage() {
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "创建失败";
-      toast.error("创建失败：" + message);
+      toast.error(`创建失败：${message}`);
     }
   }
 
   async function copyKey() {
-    await navigator.clipboard.writeText(plaintext);
-    setCopied(true);
-    toast.success("已复制到剪贴板");
-    setTimeout(() => setCopied(false), 1500);
+    const ok = await copyText(plaintext);
+    if (ok) {
+      setCopied(true);
+      toast.success("已复制到剪贴板");
+      setTimeout(() => setCopied(false), 1500);
+    } else {
+      toast.error("复制失败，请手动选择复制");
+    }
   }
 
   async function disableKey(id: string) {
     try {
       await api.updateUserAPIKey(id, { status: "disabled" });
-      toast.success("已禁用");
+      toast.success("已停用");
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "操作失败";
-      toast.error("操作失败：" + message);
+      toast.error(`操作失败：${message}`);
     }
   }
 
@@ -69,7 +74,7 @@ export function ApiKeysPage() {
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "操作失败";
-      toast.error("操作失败：" + message);
+      toast.error(`操作失败：${message}`);
     }
   }
 
@@ -80,7 +85,7 @@ export function ApiKeysPage() {
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "操作失败";
-      toast.error("操作失败：" + message);
+      toast.error(`操作失败：${message}`);
     }
   }
 
@@ -91,13 +96,13 @@ export function ApiKeysPage() {
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "删除失败";
-      toast.error("删除失败：" + message);
+      toast.error(`删除失败：${message}`);
     }
   }
 
   return (
     <div className="page-grid">
-      <PageHeader eyebrow="API 密钥" title="自助创建和管理平台密钥" description="密钥明文只在创建时显示一次。后续只展示脱敏值，请妥善保存。" />
+      <PageHeader eyebrow="API 密钥" title="自助创建和管理平台密钥" description="密钥明文只在创建时展示一次。后续只展示脱敏值，请妥善保存。" />
       {plaintext ? (
         <Card className="border-primary/35 bg-primary/10">
           <CardContent className="flex flex-col gap-3 p-5 lg:flex-row lg:items-center lg:justify-between">
@@ -105,7 +110,10 @@ export function ApiKeysPage() {
               <p className="text-sm font-semibold text-primary">新密钥仅显示一次</p>
               <code className="mt-2 block break-all rounded-md bg-background/70 p-3 text-sm">{plaintext}</code>
             </div>
-            <Button onClick={copyKey} variant="secondary">{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}复制</Button>
+            <Button onClick={copyKey} variant="secondary">
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              复制
+            </Button>
           </CardContent>
         </Card>
       ) : null}
@@ -129,7 +137,11 @@ export function ApiKeysPage() {
             items.map((item) => (
               <div key={item.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.035] p-4 md:flex-row md:items-center md:justify-between">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2"><KeyRound className="h-4 w-4 text-primary" /><strong>{item.name}</strong><Badge>{zhStatus(item.status)}</Badge></div>
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4 text-primary" />
+                    <strong>{item.name}</strong>
+                    <Badge>{zhStatus(item.status)}</Badge>
+                  </div>
                   <p className="mt-2 break-all font-mono text-sm text-muted-foreground">{item.mask}</p>
                 </div>
                 <div className="flex gap-2">

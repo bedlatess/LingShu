@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Card, Input, Space, Table, message } from "antd";
+import { Button, Card, Input, InputNumber, Modal, Space, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { createAPI, type AuditLog } from "@lingshu/shared";
 
@@ -15,17 +15,12 @@ export function AuditPage({ api, auditColumns, initialLogs, pager, setPager }: {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [loading, setLoading] = useState(false);
+  const [beforeDays, setBeforeDays] = useState(90);
 
   async function loadAuditLogs() {
     setLoading(true);
     try {
-      const result = await api.listAuditLogs(pager.page, pager.limit, {
-        actor_id: actorID,
-        action,
-        target_type: targetType,
-        from,
-        to
-      });
+      const result = await api.listAuditLogs(pager.page, pager.limit, { actor_id: actorID, action, target_type: targetType, from, to });
       setLogs(result.items);
       setPager((prev) => ({ ...prev, total: result.total }));
     } catch (err) {
@@ -51,6 +46,19 @@ export function AuditPage({ api, auditColumns, initialLogs, pager, setPager }: {
           <Button type="primary" onClick={loadAuditLogs}>查询</Button>
           <Button onClick={() => { setActorID(""); setAction(""); setTargetType(""); setFrom(""); setTo(""); }}>重置</Button>
           <Button onClick={() => exportCSV("audit-logs.csv", logs)}>导出 CSV</Button>
+          <InputNumber min={7} value={beforeDays} onChange={(value) => setBeforeDays(Number(value ?? 90))} addonAfter="天前" />
+          <Button danger onClick={() => Modal.confirm({
+            title: "确认清理审计日志？",
+            content: `将永久删除 ${beforeDays} 天前的审计日志，不可恢复。`,
+            okText: "确认清理",
+            cancelText: "取消",
+            okButtonProps: { danger: true },
+            onOk: async () => {
+              const result = await api.cleanupAuditLogs(beforeDays);
+              message.success(`已清理 ${result.deleted} 条审计日志`);
+              await loadAuditLogs();
+            }
+          })}>清理审计日志</Button>
         </Space>
       </Card>
       <Card title="审计日志"><Table rowKey="id" loading={loading} columns={auditColumns} dataSource={logs} pagination={tablePagination(pager, setPager)} /></Card>

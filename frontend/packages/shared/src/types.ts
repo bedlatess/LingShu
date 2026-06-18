@@ -99,6 +99,20 @@ export interface Channel {
   last_success_at?: string;
 }
 
+export interface ChannelPreset {
+  key: string;
+  label: string;
+  base_url: string;
+  format: string;
+  note: string;
+}
+
+export interface ChannelDetectResult {
+  format: string;
+  normalized_base_url: string;
+  sample_models: string[];
+}
+
 export interface ProviderModel {
   id: string;
   type: string;
@@ -151,6 +165,16 @@ export interface RedeemCode {
   status: string;
   max_uses: number;
   used_count: number;
+  expires_at?: string;
+  created_at: string;
+}
+
+export interface RedeemRecord {
+  id: string;
+  user_id: string;
+  username: string;
+  amount: string;
+  client_ip: string;
   created_at: string;
 }
 
@@ -259,6 +283,15 @@ export interface AdminDashboard {
   gross_profit: string;
   active_users: number;
   balance_total: string;
+  total_users?: number;
+  total_channels?: number;
+  healthy_channels?: number;
+  total_models?: number;
+  enabled_models?: number;
+  today_successes?: number;
+  today_failures?: number;
+  active_api_keys?: number;
+  total_requests?: number;
 }
 
 export interface LoginResponse {

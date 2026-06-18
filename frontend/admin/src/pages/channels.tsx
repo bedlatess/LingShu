@@ -4,11 +4,11 @@ import type { ColumnsType } from "antd/es/table";
 import { Link, useParams } from "react-router-dom";
 import {
   createAPI,
-  perKToM,
   perMToK,
   type Channel,
   type ChannelDetail,
   type ChannelModelImportInput,
+  type ChannelPreset,
   type ModelConfig,
   type ProviderModel
 } from "@lingshu/shared";
@@ -49,6 +49,11 @@ export function ChannelsPage({
   const [provider, setProvider] = useState<string>();
   const [status, setStatus] = useState<string>();
   const [health, setHealth] = useState<string>();
+  const [presets, setPresets] = useState<ChannelPreset[]>([]);
+
+  useEffect(() => {
+    api.listChannelPresets().then((result) => setPresets(result.items)).catch((err) => message.error(`加载供应商预设失败: ${errText(err)}`));
+  }, [api]);
 
   const filtered = useMemo(() => {
     const q = keyword.trim().toLowerCase();
@@ -60,6 +65,22 @@ export function ChannelsPage({
       return true;
     });
   }, [channels, health, keyword, provider, status]);
+
+  async function detectCurrentChannel() {
+    const base = form.getFieldValue("base_url");
+    const key = form.getFieldValue("api_key");
+    if (!base || !key) {
+      message.warning("请先填写 base_url 和上游 key");
+      return;
+    }
+    try {
+      const result = await api.detectChannel(base, key);
+      form.setFieldsValue({ provider_type: result.format, base_url: result.normalized_base_url });
+      message.success(`已识别为 ${result.format}，样例模型 ${result.sample_models.slice(0, 3).join(", ") || "无"}`);
+    } catch (err) {
+      message.error(`检测失败: ${errText(err)}`);
+    }
+  }
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
@@ -85,16 +106,52 @@ export function ChannelsPage({
           initialValues={{ provider_type: "openai", status: "enabled", weight: 1, timeout_seconds: 120, rpm_limit: 60, concurrency_limit: 5, fail_threshold: 5 }}
         >
           <Space wrap align="start">
-            <Form.Item name="name" label="名称" rules={[{ required: true }]}><Input style={{ width: 220 }} /></Form.Item>
-            <Form.Item name="provider_type" label="供应商" rules={[{ required: true }]}><Select style={{ width: 180 }} options={providerOptions} /></Form.Item>
-            <Form.Item name="base_url" label="Base URL" rules={[{ required: true }]}><Input style={{ width: 320 }} /></Form.Item>
-            <Form.Item name="api_key" label="上游 API Key" rules={[{ required: true }]}><Input.Password style={{ width: 260 }} /></Form.Item>
-            <Form.Item name="weight" label="权重"><InputNumber min={1} style={{ width: 110 }} /></Form.Item>
-            <Form.Item name="timeout_seconds" label="超时(秒)"><InputNumber min={1} style={{ width: 110 }} /></Form.Item>
-            <Form.Item name="rpm_limit" label="RPM"><InputNumber min={1} style={{ width: 110 }} /></Form.Item>
-            <Form.Item name="concurrency_limit" label="并发"><InputNumber min={1} style={{ width: 110 }} /></Form.Item>
-            <Form.Item name="fail_threshold" label="失败阈值"><InputNumber min={1} style={{ width: 110 }} /></Form.Item>
-            <Form.Item name="status" label="状态"><Select style={{ width: 120 }} options={[{ value: "enabled", label: "启用" }, { value: "disabled", label: "停用" }]} /></Form.Item>
+            <Form.Item label="供应商预设">
+              <Select
+                style={{ width: 220 }}
+                placeholder="选择后自动填入"
+                options={presets.map((p) => ({ value: p.key, label: p.label }))}
+                onChange={(key) => {
+                  const preset = presets.find((item) => item.key === key);
+                  if (!preset) return;
+                  form.setFieldsValue({ base_url: preset.base_url, provider_type: preset.format });
+                  if (preset.note) message.info(preset.note);
+                }}
+              />
+            </Form.Item>
+            <Form.Item name="name" label="名称" rules={[{ required: true }]}>
+              <Input style={{ width: 220 }} />
+            </Form.Item>
+            <Form.Item name="provider_type" label="协议" rules={[{ required: true }]}>
+              <Select style={{ width: 180 }} options={providerOptions} />
+            </Form.Item>
+            <Form.Item name="base_url" label="Base URL" rules={[{ required: true }]}>
+              <Input style={{ width: 320 }} />
+            </Form.Item>
+            <Form.Item name="api_key" label="上游 API Key" rules={[{ required: true }]}>
+              <Input.Password style={{ width: 260 }} />
+            </Form.Item>
+            <Form.Item label=" ">
+              <Button onClick={detectCurrentChannel}>检测并填充协议</Button>
+            </Form.Item>
+            <Form.Item name="weight" label="权重">
+              <InputNumber min={1} style={{ width: 110 }} />
+            </Form.Item>
+            <Form.Item name="timeout_seconds" label="超时(秒)">
+              <InputNumber min={1} style={{ width: 110 }} />
+            </Form.Item>
+            <Form.Item name="rpm_limit" label="RPM">
+              <InputNumber min={1} style={{ width: 110 }} />
+            </Form.Item>
+            <Form.Item name="concurrency_limit" label="并发">
+              <InputNumber min={1} style={{ width: 110 }} />
+            </Form.Item>
+            <Form.Item name="fail_threshold" label="失败阈值">
+              <InputNumber min={1} style={{ width: 110 }} />
+            </Form.Item>
+            <Form.Item name="status" label="状态">
+              <Select style={{ width: 120 }} options={[{ value: "enabled", label: "启用" }, { value: "disabled", label: "停用" }]} />
+            </Form.Item>
           </Space>
           <Button type="primary" htmlType="submit">创建渠道</Button>
         </Form>
@@ -103,7 +160,7 @@ export function ChannelsPage({
       <Card title="渠道列表">
         <Space wrap style={{ marginBottom: 12 }}>
           <Input.Search placeholder="搜索渠道名称" allowClear onSearch={setKeyword} onChange={(event) => setKeyword(event.target.value)} style={{ width: 240 }} />
-          <Select allowClear placeholder="供应商" style={{ width: 180 }} options={providerOptions} value={provider} onChange={setProvider} />
+          <Select allowClear placeholder="协议" style={{ width: 180 }} options={providerOptions} value={provider} onChange={setProvider} />
           <Select allowClear placeholder="状态" style={{ width: 140 }} options={[{ value: "enabled", label: "启用" }, { value: "disabled", label: "停用" }]} value={status} onChange={setStatus} />
           <Select allowClear placeholder="健康" style={{ width: 140 }} options={[{ value: "healthy", label: "健康" }, { value: "unhealthy", label: "异常" }]} value={health} onChange={setHealth} />
         </Space>
@@ -207,7 +264,7 @@ export function ChannelDetailPage({ api }: { api: AdminAPI }) {
         status: "enabled"
       }));
       const result = await api.importChannelModels(id, { strategy: "create_or_bind", models: payload });
-      message.success(`导入完成：${result.items.length} 个模型已创建或绑定`);
+      message.success(`导入完成，${result.items.length} 个模型已创建或绑定`);
       setSyncOpen(false);
       await loadDetail();
     } catch (err) {
@@ -224,6 +281,7 @@ export function ChannelDetailPage({ api }: { api: AdminAPI }) {
         await api.unbindChannelModel(id, String(modelID));
       }
       message.success("已批量解绑");
+      setSelectedBindingKeys([]);
       await loadDetail();
     }, "批量解绑失败").catch(() => undefined);
   }
@@ -257,12 +315,9 @@ export function ChannelDetailPage({ api }: { api: AdminAPI }) {
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
       <Link to="/channels">返回渠道列表</Link>
-      <Card
-        title={`渠道详情：${detail.channel.name}`}
-        extra={<Button type="primary" onClick={openSync}>同步上游模型</Button>}
-      >
+      <Card title={`渠道详情：${detail.channel.name}`} extra={<Button type="primary" onClick={openSync}>同步上游模型</Button>}>
         {metricCards([
-          { label: "供应商", value: detail.channel.provider_type },
+          { label: "协议", value: detail.channel.provider_type },
           { label: "状态", value: detail.channel.status },
           { label: "健康状态", value: detail.channel.health },
           { label: "权重", value: detail.channel.weight },
@@ -283,26 +338,10 @@ export function ChannelDetailPage({ api }: { api: AdminAPI }) {
           <Typography.Text>最近延迟：{detail.channel.last_latency_ms ?? 0} ms</Typography.Text>
         </Space>
       </Card>
-      <Card
-        title="绑定列表"
-        extra={<Button danger onClick={() => unbindSelected(selectedBindingKeys)}>批量解绑选中</Button>}
-      >
-        <Table
-          rowKey="model_id"
-          columns={columns}
-          dataSource={detail.models}
-          rowSelection={{ selectedRowKeys: selectedBindingKeys, onChange: setSelectedBindingKeys }}
-        />
+      <Card title="绑定列表" extra={<Button danger onClick={() => unbindSelected(selectedBindingKeys)}>批量解绑选中</Button>}>
+        <Table rowKey="model_id" columns={columns} dataSource={detail.models} rowSelection={{ selectedRowKeys: selectedBindingKeys, onChange: setSelectedBindingKeys }} />
       </Card>
-      <Modal
-        title="同步上游模型"
-        open={syncOpen}
-        onCancel={() => setSyncOpen(false)}
-        onOk={importSelected}
-        okText="确认导入"
-        confirmLoading={importing}
-        width={1280}
-      >
+      <Modal title="同步上游模型" open={syncOpen} onCancel={() => setSyncOpen(false)} onOk={importSelected} okText="确认导入" confirmLoading={importing} width={1280}>
         <Space wrap style={{ marginBottom: 12 }}>
           <Input placeholder="批量倍率" value={bulkRate} onChange={(event) => setBulkRate(event.target.value)} style={{ width: 120 }} />
           <Input placeholder="批量输入价/1M" value={bulkInput} onChange={(event) => setBulkInput(event.target.value)} style={{ width: 150 }} />

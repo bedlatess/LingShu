@@ -62,6 +62,22 @@ func (h SettingsHandler) AuditLogs(w http.ResponseWriter, r *http.Request) {
 	writePagedJSON(w, items, total, page, limit)
 }
 
+func (h SettingsHandler) CleanupAuditLogs(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		BeforeDays int `json:"before_days"`
+	}
+	_ = httpx.Decode(r, &input)
+	if input.BeforeDays < 7 {
+		input.BeforeDays = 90
+	}
+	deleted, err := h.audits.DeleteOlderThan(r.Context(), input.BeforeDays)
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"deleted": deleted})
+}
+
 func parseAuditLogFilter(r *http.Request) (repository.AuditLogFilter, error) {
 	query := r.URL.Query()
 	filter := repository.AuditLogFilter{

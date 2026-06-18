@@ -1,4 +1,4 @@
-﻿import type { APIKey, AdminDashboard, Announcement, AuditLog, Channel, ChannelDetail, CreatedAPIKey, DailyStat, GatewayLog, HealthResponse, LedgerRecord, LoginResponse, ModelConfig, ModelDetail, ModelStat, RedeemCode, ReportRow, SystemSetting, User } from "./admin-types";
+﻿import type { APIKey, AdminDashboard, Announcement, AuditLog, Channel, ChannelDetectResult, ChannelDetail, ChannelPreset, CreatedAPIKey, DailyStat, GatewayLog, HealthResponse, LedgerRecord, LoginResponse, ModelConfig, ModelDetail, ModelStat, RedeemCode, RedeemRecord, ReportRow, SystemSetting, User } from "./admin-types";
 import type { ChannelModelImportInput, ChannelModelImportResult, ChannelModelSyncResult, CleanupHistoryEntry, CleanupResult, PaginatedResponse, PublicModel, PublicSiteInfo } from "./types";
 import type { UserDashboard, UserGatewayLog, UserLedgerRecord, UserModelConfig } from "./user-types";
 
@@ -165,6 +165,17 @@ export function createAPI(token?: string) {
     cleanupHistory: (limit = 20) => request<{ items: CleanupHistoryEntry[] }>(withQuery("/api/admin/cleanup/history", { limit })),
     listAuditLogs: (page?: number, limit?: number, filters?: { actor_id?: string; action?: string; target_type?: string; from?: string; to?: string }) =>
       request<PaginatedResponse<AuditLog>>(withQuery("/api/admin/audit-logs", { page, limit, ...filters })),
+    cleanupAuditLogs: (before_days: number) =>
+      request<{ deleted: number }>("/api/admin/audit-logs/cleanup", {
+        method: "POST",
+        body: JSON.stringify({ before_days })
+      }),
+    listChannelPresets: () => request<{ items: ChannelPreset[] }>("/api/admin/channel-presets"),
+    detectChannel: (base_url: string, api_key: string) =>
+      request<ChannelDetectResult>("/api/admin/channels/detect", {
+        method: "POST",
+        body: JSON.stringify({ base_url, api_key })
+      }),
     listChannels: (page?: number, limit?: number) => request<PaginatedResponse<Channel>>(withQuery("/api/admin/channels", { page, limit })),
     getChannelDetail: (id: string) => request<ChannelDetail>(`/api/admin/channels/${id}`),
     createChannel: (payload: {
@@ -246,7 +257,7 @@ export function createAPI(token?: string) {
         method: "DELETE"
       }),
     listRedeemCodes: (page?: number, limit?: number) => request<PaginatedResponse<RedeemCode>>(withQuery("/api/admin/redeem-codes", { page, limit })),
-    createRedeemCodes: (payload: { amount: string; count: number; batch_name?: string; max_uses?: number }) =>
+    createRedeemCodes: (payload: { amount: string; count: number; batch_name?: string; max_uses?: number; expires_at?: string }) =>
       request<{ items: RedeemCode[] }>("/api/admin/redeem-codes", {
         method: "POST",
         body: JSON.stringify(payload)
@@ -255,6 +266,7 @@ export function createAPI(token?: string) {
       request<{ status: string }>(`/api/admin/redeem-codes/${id}/disable`, {
         method: "POST"
       }),
+    listRedeemRecords: (id: string) => request<{ items: RedeemRecord[] }>(`/api/admin/redeem-codes/${id}/records`),
     userAnnouncements: () => request<{ items: Announcement[] }>("/api/user/announcements"),
     userDashboard: () => request<UserDashboard>("/api/user/dashboard"),
     userModels: () => request<{ items: UserModelConfig[] }>("/api/user/models"),

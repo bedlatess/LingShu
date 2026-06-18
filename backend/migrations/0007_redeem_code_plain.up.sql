@@ -1,0 +1,1 @@
+ALTER TABLE redeem_codes ADD COLUMN IF NOT EXISTS code_plain TEXT NOT NULL DEFAULT '';

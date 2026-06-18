@@ -180,6 +180,105 @@ func (s GatewayService) Chat(ctx context.Context, principal GatewayPrincipal, ra
 	return upstreamResp.StatusCode, upstreamResp.Body, nil
 }
 
+func (s GatewayService) Embeddings(ctx context.Context, principal GatewayPrincipal, rawBody []byte, clientIP, sessionID string) (int, []byte, error) {
+	start := time.Now()
+	var req ChatRequest
+	if err := json.Unmarshal(rawBody, &req); err != nil {
+		return http.StatusBadRequest, nil, err
+	}
+	model, err := s.repo.FindEnabledModel(ctx, req.Model)
+	if err != nil {
+		return http.StatusNotFound, nil, errors.New("model not found")
+	}
+	releaseKey, err := s.acquireKeyLimits(ctx, principal)
+	if err != nil {
+		return http.StatusTooManyRequests, nil, err
+	}
+	defer releaseKey()
+
+	multiplierUnits, _ := billing.DecimalStringToUnits(model.RateMultiplier)
+	estimatedInput := billing.EstimateTokens(string(rawBody))
+	estimate := estimateChargeForModel(model, req, estimatedInput, multiplierUnits)
+	balanceUnits, _ := billing.DecimalStringToUnits(principal.Balance)
+	if err := billing.Reserve(ctx, s.frozen, principal.UserID, balanceUnits, estimate.Charge); err != nil {
+		return http.StatusPaymentRequired, nil, ErrInsufficientBalance
+	}
+	defer billing.Release(ctx, s.frozen, principal.UserID, estimate.Charge)
+
+	channel, upstreamResp, err := s.forwardEmbeddingsWithRetry(ctx, model.ID, rawBody, stickyKey(principal, req, sessionID))
+	if err != nil {
+		statusCode := http.StatusBadGateway
+		var upstreamErr *UpstreamError
+		if errors.As(err, &upstreamErr) {
+			statusCode = upstreamErr.StatusCode
+		}
+		_ = s.repo.RecordAndCharge(ctx, repository.GatewayRequestRecord{
+			RequestID:      uuid.NewString(),
+			UserID:         principal.UserID,
+			APIKeyID:       principal.APIKeyID,
+			ModelID:        model.ID,
+			ChannelID:      channel.ID,
+			Endpoint:       "/v1/embeddings",
+			Status:         "failed",
+			HTTPStatus:     statusCode,
+			BaseCost:       "0.000000",
+			RateMultiplier: model.RateMultiplier,
+			Charge:         "0.000000",
+			ErrorCode:      "upstream_error",
+			ErrorMessage:   err.Error(),
+			ClientIP:       clientIP,
+			LatencyMS:      repository.NowMS(start),
+		})
+		if errors.Is(err, ErrRateLimited) {
+			return http.StatusTooManyRequests, nil, err
+		}
+		if upstreamErr != nil {
+			return upstreamErr.StatusCode, NormalizeUpstreamErrorBody(upstreamErr.StatusCode, upstreamErr.Body), nil
+		}
+		return http.StatusBadGateway, nil, err
+	}
+
+	usage := upstreamResp.Usage
+	isEstimated := false
+	if usage.TotalTokens == 0 {
+		isEstimated = true
+		usage.PromptTokens = int(estimatedInput)
+		usage.CompletionTokens = 0
+		usage.TotalTokens = usage.PromptTokens
+	}
+	actual := actualChargeForModel(model, req, usage, multiplierUnits)
+	status := "success"
+	if upstreamResp.StatusCode >= 400 {
+		status = "failed"
+		actual = billing.Charge{BaseCost: 0, RateMultiplier: multiplierUnits, Charge: 0}
+	}
+	if err := s.repo.RecordAndCharge(ctx, repository.GatewayRequestRecord{
+		RequestID:        uuid.NewString(),
+		UserID:           principal.UserID,
+		APIKeyID:         principal.APIKeyID,
+		ModelID:          model.ID,
+		ChannelID:        channel.ID,
+		Endpoint:         "/v1/embeddings",
+		Status:           status,
+		HTTPStatus:       upstreamResp.StatusCode,
+		PromptTokens:     usage.PromptTokens,
+		CompletionTokens: usage.CompletionTokens,
+		TotalTokens:      usage.TotalTokens,
+		BaseCost:         billing.UnitsToDecimalString(actual.BaseCost),
+		RateMultiplier:   model.RateMultiplier,
+		Charge:           billing.UnitsToDecimalString(actual.Charge),
+		IsEstimated:      isEstimated,
+		LatencyMS:        repository.NowMS(start),
+		ClientIP:         clientIP,
+	}); err != nil {
+		if errors.Is(err, repository.ErrSettlementInsufficientBalance) {
+			return http.StatusPaymentRequired, nil, ErrInsufficientBalance
+		}
+		return http.StatusInternalServerError, nil, err
+	}
+	return upstreamResp.StatusCode, upstreamResp.Body, nil
+}
+
 func (s GatewayService) OpenChatStream(ctx context.Context, principal GatewayPrincipal, rawBody []byte, sessionID string) (repository.GatewayModel, repository.GatewayChannel, int64, *http.Response, error) {
 	var req ChatRequest
 	if err := json.Unmarshal(rawBody, &req); err != nil {
@@ -355,6 +454,50 @@ func (s GatewayService) forwardWithRetry(ctx context.Context, modelID string, ra
 	return lastChannel, upstream.ChatResponse{}, lastErr
 }
 
+func (s GatewayService) forwardEmbeddingsWithRetry(ctx context.Context, modelID string, rawBody []byte, sticky string) (repository.GatewayChannel, upstream.ChatResponse, error) {
+	channels, err := s.repo.ListCandidateChannels(ctx, modelID)
+	if err != nil {
+		return repository.GatewayChannel{}, upstream.ChatResponse{}, err
+	}
+	if len(channels) == 0 {
+		return repository.GatewayChannel{}, upstream.ChatResponse{}, ErrNoHealthyChannel
+	}
+	var lastChannel repository.GatewayChannel
+	var lastErr error = ErrNoHealthyChannel
+	limited := true
+	for _, channel := range s.orderChannels(ctx, sticky, channels) {
+		lastChannel = channel
+		ok, err := s.acquireChannel(ctx, channel)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if !ok {
+			continue
+		}
+		limited = false
+		resp, err := s.forwardEmbeddingsOnce(ctx, channel, rawBody)
+		s.frozen.ReleaseConcurrency(ctx, "channel:"+channel.ID)
+		if err != nil {
+			lastErr = err
+			_ = s.repo.MarkChannelFailure(ctx, channel.ID, err.Error())
+			continue
+		}
+		if shouldRetryStatus(resp.StatusCode) {
+			lastErr = &UpstreamError{StatusCode: resp.StatusCode, Body: resp.Body}
+			_ = s.repo.MarkChannelFailure(ctx, channel.ID, lastErr.Error())
+			continue
+		}
+		_ = s.repo.MarkChannelSuccess(ctx, channel.ID)
+		s.rememberSticky(ctx, sticky, channel.ID)
+		return channel, resp, nil
+	}
+	if limited {
+		return lastChannel, upstream.ChatResponse{}, ErrRateLimited
+	}
+	return lastChannel, upstream.ChatResponse{}, lastErr
+}
+
 func (s GatewayService) openStreamWithRetry(ctx context.Context, modelID string, rawBody []byte, sticky string) (repository.GatewayChannel, *http.Response, error) {
 	channels, err := s.repo.ListCandidateChannels(ctx, modelID)
 	if err != nil {
@@ -504,6 +647,12 @@ func (s GatewayService) forwardOnce(ctx context.Context, channel repository.Gate
 	upstreamKeyBytes, _ := base64.StdEncoding.DecodeString(channel.APIKeyEncrypted)
 	provider := upstream.ProviderForType(channel.ProviderType)
 	return provider.ForwardChat(ctx, channel.BaseURL, string(upstreamKeyBytes), channel.TimeoutSeconds, rawBody, channel.UpstreamModelName)
+}
+
+func (s GatewayService) forwardEmbeddingsOnce(ctx context.Context, channel repository.GatewayChannel, rawBody []byte) (upstream.ChatResponse, error) {
+	upstreamKeyBytes, _ := base64.StdEncoding.DecodeString(channel.APIKeyEncrypted)
+	provider := upstream.ProviderForType(channel.ProviderType)
+	return provider.ForwardEmbeddings(ctx, channel.BaseURL, string(upstreamKeyBytes), channel.TimeoutSeconds, rawBody, channel.UpstreamModelName)
 }
 
 func (s GatewayService) openStreamOnce(ctx context.Context, channel repository.GatewayChannel, rawBody []byte) (*http.Response, error) {

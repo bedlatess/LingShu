@@ -57,6 +57,50 @@ export function exportCSV<T extends object>(filename: string, rows: T[]) {
   URL.revokeObjectURL(url);
 }
 
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Fall through to textarea fallback.
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+export function fmtMoney(v?: string | number) {
+  const n = Number(v ?? 0);
+  return Number.isFinite(n) ? n.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : "0";
+}
+
+export function MiniBars({ data }: { data: { label: string; value: number }[] }) {
+  const max = Math.max(1, ...data.map((d) => d.value));
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 140 }}>
+      {data.map((d) => (
+        <div key={d.label} style={{ flex: 1, minWidth: 28, textAlign: "center" }}>
+          <div style={{ height: `${(d.value / max) * 110}px`, background: "#4f46e5", borderRadius: 4 }} title={`${d.value}`} />
+          <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{d.label.length > 5 ? d.label.slice(5) : d.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function metricCards(items: { label: string; value: React.ReactNode }[]) {
   return (
     <Space wrap>

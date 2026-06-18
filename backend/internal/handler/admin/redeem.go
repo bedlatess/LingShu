@@ -51,3 +51,12 @@ func (h RedeemHandler) Disable(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
+
+func (h RedeemHandler) Records(w http.ResponseWriter, r *http.Request) {
+	items, err := h.redeems.Records(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+}

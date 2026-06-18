@@ -476,7 +476,7 @@ function App() {
               <Suspense fallback={<Spin />}>
                 <Routes>
                   <Route index element={<Navigate to="/dashboard" replace />} />
-                  <Route path="/dashboard" element={<AdminDashboardPage dashboard={dashboard} auditCount={auditCount} me={me} />} />
+                  <Route path="/dashboard" element={<AdminDashboardPage dashboard={dashboard} auditCount={auditCount} me={me} api={api} />} />
                   <Route path="/users" element={<UsersPage users={users} userColumns={userColumns} api={api} refresh={refresh} pager={usersPager} setPager={setUsersPager} />} />
                   <Route path="/users/:id" element={<UserDetailPage api={api} />} />
                   <Route path="/api-keys" element={<ApiKeysPage apiKeys={apiKeys} keyColumns={keyColumns} api={api} refresh={refresh} users={users} createdKey={createdKey} setCreatedKey={setCreatedKey} pager={keysPager} setPager={setKeysPager} />} />
@@ -507,7 +507,7 @@ function App() {
         </Form>
       </Modal>
       <Modal title={editingModel ? `编辑模型：${editingModel.public_name}` : "编辑模型"} open={Boolean(editingModel)} onCancel={() => setEditingModel(null)} onOk={() => modelForm.submit()} destroyOnClose width={760}>
-        <ModelForm form={modelForm} onFinish={handleUpdateModel} />
+        <ModelForm form={modelForm} onFinish={handleUpdateModel} hideSubmit />
       </Modal>
       <Modal title={editingUser ? `编辑用户：${editingUser.username}` : "编辑用户"} open={Boolean(editingUser)} onCancel={() => setEditingUser(null)} onOk={() => userForm.submit()} destroyOnClose>
         <Form form={userForm} layout="vertical" onFinish={handleUpdateUser}>

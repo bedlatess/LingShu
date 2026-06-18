@@ -100,6 +100,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 		r.Use(middleware.AdminOnly)
 		r.Get("/audit-count", adminUsers.AuditCount)
 		r.Get("/audit-logs", adminSettings.AuditLogs)
+		r.Post("/audit-logs/cleanup", adminSettings.CleanupAuditLogs)
 		r.Get("/dashboard", adminReports.Dashboard)
 		r.Get("/reports/daily", adminReports.Daily)
 		r.Get("/reports/by-user", adminReports.ByUser)
@@ -130,6 +131,8 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 		r.Patch("/models/{id}", adminModels.Update)
 		r.Post("/models/{id}/disable", adminModels.Disable)
 		r.Delete("/models/{id}", adminModels.Delete)
+		r.Get("/channel-presets", adminChannels.Presets)
+		r.Post("/channels/detect", adminChannels.Detect)
 		r.Get("/channels", adminChannels.List)
 		r.Post("/channels", adminChannels.Create)
 		r.Get("/channels/{id}", adminChannels.Detail)
@@ -149,6 +152,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 		r.Post("/redeem-codes", adminRedeems.Create)
 		r.Post("/redeem-codes/batch", adminRedeems.Create)
 		r.Post("/redeem-codes/{id}/disable", adminRedeems.Disable)
+		r.Get("/redeem-codes/{id}/records", adminRedeems.Records)
 		r.Get("/gateway-requests", adminReports.Logs)
 		r.Get("/balance-ledger", adminReports.Ledger)
 	})
@@ -172,6 +176,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 		r.Use(middleware.APIKeyAuth(apiKeyRepo))
 		r.Get("/models", gatewayHandler.Models)
 		r.Post("/chat/completions", gatewayHandler.ChatCompletions)
+		r.Post("/embeddings", gatewayHandler.Embeddings)
 	})
 	return r
 }

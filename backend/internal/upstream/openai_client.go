@@ -30,6 +30,10 @@ func (OpenAIAdapter) ForwardChat(ctx context.Context, baseURL, apiKey string, ti
 	return ForwardChat(ctx, baseURL, apiKey, timeoutSeconds, PrepareOpenAIBody(rawBody, upstreamModelName))
 }
 
+func (OpenAIAdapter) ForwardEmbeddings(ctx context.Context, baseURL, apiKey string, timeoutSeconds int, rawBody []byte, upstreamModelName string) (ChatResponse, error) {
+	return ForwardEmbeddings(ctx, baseURL, apiKey, timeoutSeconds, PrepareEmbeddingsBody(rawBody, upstreamModelName))
+}
+
 func (OpenAIAdapter) OpenChatStream(ctx context.Context, baseURL, apiKey string, timeoutSeconds int, rawBody []byte, upstreamModelName string) (*http.Response, error) {
 	return OpenChatStream(ctx, baseURL, apiKey, timeoutSeconds, PrepareOpenAIBody(rawBody, upstreamModelName))
 }
@@ -83,6 +87,31 @@ func ForwardChat(ctx context.Context, baseURL, apiKey string, timeoutSeconds int
 	}
 	client := &http.Client{Timeout: timeout}
 	url := strings.TrimRight(baseURL, "/") + "/chat/completions"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return ChatResponse{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	resp, err := client.Do(req)
+	if err != nil {
+		return ChatResponse{}, err
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ChatResponse{}, err
+	}
+	return ChatResponse{StatusCode: resp.StatusCode, Body: respBody, Usage: extractUsage(respBody)}, nil
+}
+
+func ForwardEmbeddings(ctx context.Context, baseURL, apiKey string, timeoutSeconds int, body []byte) (ChatResponse, error) {
+	timeout := time.Duration(timeoutSeconds) * time.Second
+	if timeout <= 0 {
+		timeout = 120 * time.Second
+	}
+	client := &http.Client{Timeout: timeout}
+	url := strings.TrimRight(baseURL, "/") + "/embeddings"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return ChatResponse{}, err
@@ -200,6 +229,21 @@ func PrepareOpenAIBody(rawBody []byte, upstreamModelName string) []byte {
 		return rawBody
 	}
 	return out
+}
+
+func PrepareEmbeddingsBody(rawBody []byte, upstreamModelName string) []byte {
+	var payload map[string]any
+	if err := json.Unmarshal(rawBody, &payload); err != nil {
+		return rawBody
+	}
+	if name := strings.TrimSpace(upstreamModelName); name != "" {
+		payload["model"] = name
+		out, err := json.Marshal(payload)
+		if err == nil {
+			return out
+		}
+	}
+	return rawBody
 }
 
 func extractUsage(body []byte) Usage {

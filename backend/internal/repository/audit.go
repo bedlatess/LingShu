@@ -116,3 +116,11 @@ func (r AuditRepository) ListPagedFiltered(ctx context.Context, filter AuditLogF
 	}
 	return items, total, rows.Err()
 }
+
+func (r AuditRepository) DeleteOlderThan(ctx context.Context, days int) (int64, error) {
+	tag, err := r.db.Exec(ctx, `DELETE FROM audit_logs WHERE created_at < now() - ($1::int * interval '1 day')`, days)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}

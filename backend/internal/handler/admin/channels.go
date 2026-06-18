@@ -9,6 +9,7 @@ import (
 	"lingshu/backend/internal/pkg/httpx"
 	"lingshu/backend/internal/repository"
 	"lingshu/backend/internal/service"
+	"lingshu/backend/internal/upstream"
 )
 
 type ChannelHandler struct {
@@ -27,6 +28,27 @@ func (h ChannelHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writePagedJSON(w, items, total, page, limit)
+}
+
+func (h ChannelHandler) Presets(w http.ResponseWriter, r *http.Request) {
+	httpx.JSON(w, http.StatusOK, map[string]any{"items": upstream.ChannelPresets()})
+}
+
+func (h ChannelHandler) Detect(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		BaseURL string `json:"base_url"`
+		APIKey  string `json:"api_key"`
+	}
+	if err := httpx.Decode(r, &input); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	result, err := upstream.DetectProtocol(r.Context(), input.BaseURL, input.APIKey)
+	if err != nil {
+		httpx.Error(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	httpx.JSON(w, http.StatusOK, result)
 }
 
 func (h ChannelHandler) Detail(w http.ResponseWriter, r *http.Request) {

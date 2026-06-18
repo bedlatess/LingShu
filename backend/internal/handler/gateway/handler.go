@@ -95,6 +95,38 @@ func (h Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 	writeGatewayBody(w, status, responseBody)
 }
 
+func (h Handler) Embeddings(w http.ResponseWriter, r *http.Request) {
+	principal, ok := middleware.CurrentGatewayPrincipal(r.Context())
+	if !ok {
+		httpx.ErrorJSON(w, http.StatusUnauthorized, "invalid_api_key", "invalid api key", "invalid_api_key")
+		return
+	}
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			message := "request body exceeds " + formatBytes(maxBytesErr.Limit)
+			httpx.ErrorJSON(w, http.StatusRequestEntityTooLarge, "request_too_large", message, "request_too_large")
+			return
+		}
+		httpx.ErrorJSON(w, http.StatusBadRequest, "invalid_request_error", "invalid body", "invalid_body")
+		return
+	}
+	principalDTO := service.GatewayPrincipal{
+		UserID:           principal.UserID,
+		APIKeyID:         principal.APIKeyID,
+		Balance:          principal.Balance,
+		RPMLimit:         principal.RPMLimit,
+		ConcurrencyLimit: principal.ConcurrencyLimit,
+	}
+	status, responseBody, err := h.gateway.Embeddings(r.Context(), principalDTO, body, clientIP(r), sessionID(r))
+	if err != nil {
+		writeGatewayError(w, status, err)
+		return
+	}
+	writeGatewayBody(w, status, responseBody)
+}
+
 func sessionID(r *http.Request) string {
 	if value := strings.TrimSpace(r.Header.Get("X-Session-Id")); value != "" {
 		return value

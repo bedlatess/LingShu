@@ -13,7 +13,7 @@ import { zhLedgerType } from "@/lib/i18n";
 import { toast } from "sonner";
 
 export function RedeemPage() {
-  const { api, refreshMe } = useAuth();
+  const { api, refreshMe, user } = useAuth();
   const [code, setCode] = React.useState("");
   const [message, setMessage] = React.useState("");
   const [ledger, setLedger] = React.useState<UserLedgerRecord[]>([]);
@@ -34,11 +34,11 @@ export function RedeemPage() {
       const result = await api.redeem(code);
       setCode("");
       setMessage(`兑换成功，入账 ${formatMoney(result.amount)}`);
-      toast.success(`兑换成功，入账 ${formatMoney(result.amount)} 元`);
+      toast.success(`兑换成功，入账 ${formatMoney(result.amount)}`);
       await Promise.all([refresh(), refreshMe()]);
     } catch (err) {
       const message = err instanceof Error ? err.message : "兑换失败";
-      toast.error("兑换失败：" + message);
+      toast.error(`兑换失败：${message}`);
     }
   }
 
@@ -54,8 +54,19 @@ export function RedeemPage() {
             {message ? <p className="rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">{message}</p> : null}
             <Button type="submit"><Gift className="h-4 w-4" />兑换</Button>
           </form>
-          <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
-            <p className="text-sm text-muted-foreground">兑换成功后余额即时到账。</p>
+          <div className="grid content-start gap-4 rounded-lg border border-white/10 bg-white/[0.035] p-5">
+            <div>
+              <p className="text-sm text-muted-foreground">当前余额</p>
+              <p className="text-2xl font-semibold text-primary">¥ {formatMoney(user?.balance)}</p>
+            </div>
+            <div className="grid gap-2 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">充值说明</p>
+              <p>1. 向管理员获取兑换码，通常形如 LS-XXXX-XXXX。</p>
+              <p>2. 在左侧输入框粘贴兑换码并点击兑换。</p>
+              <p>3. 兑换成功后余额即时到账，可在下方账本查看。</p>
+              <p>4. 每个兑换码有使用次数与有效期限制，过期或用尽后将失效。</p>
+            </div>
+            <p className="text-xs text-muted-foreground">如兑换异常，请联系管理员核对卡号状态。</p>
           </div>
         </CardContent>
       </Card>

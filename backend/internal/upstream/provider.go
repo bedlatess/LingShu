@@ -8,6 +8,7 @@ import (
 
 type Provider interface {
 	ForwardChat(ctx context.Context, baseURL, apiKey string, timeoutSeconds int, rawBody []byte, upstreamModelName string) (ChatResponse, error)
+	ForwardEmbeddings(ctx context.Context, baseURL, apiKey string, timeoutSeconds int, rawBody []byte, upstreamModelName string) (ChatResponse, error)
 	OpenChatStream(ctx context.Context, baseURL, apiKey string, timeoutSeconds int, rawBody []byte, upstreamModelName string) (*http.Response, error)
 	ListModels(ctx context.Context, baseURL, apiKey string) ([]ProviderModel, error)
 }

@@ -14,6 +14,7 @@ var ErrRedeemUnavailable = errors.New("redeem code unavailable")
 type RedeemCode struct {
 	ID        string     `json:"id"`
 	Code      string     `json:"code,omitempty"`
+	CodePlain string     `json:"-"`
 	Prefix    string     `json:"code_prefix"`
 	BatchName string     `json:"batch_name"`
 	Amount    string     `json:"amount"`
@@ -26,6 +27,7 @@ type RedeemCode struct {
 
 type CreateRedeemCodeInput struct {
 	CodeHash   string
+	CodePlain  string
 	CodePrefix string
 	BatchName  string
 	Amount     string
@@ -36,6 +38,15 @@ type CreateRedeemCodeInput struct {
 
 type RedeemRepository struct {
 	db *pgxpool.Pool
+}
+
+type RedeemRecord struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	Username  string    `json:"username"`
+	Amount    string    `json:"amount"`
+	ClientIP  string    `json:"client_ip"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func NewRedeemRepository(db *pgxpool.Pool) RedeemRepository {
@@ -53,7 +64,7 @@ func (r RedeemRepository) ListPaged(ctx context.Context, limit, offset int) ([]R
 		return nil, 0, err
 	}
 	rows, err := r.db.Query(ctx, `
-		SELECT id::text, code_prefix, batch_name, amount::text, status, max_uses, used_count, expires_at, created_at
+		SELECT id::text, code_plain, code_prefix, batch_name, amount::text, status, max_uses, used_count, expires_at, created_at
 		FROM redeem_codes
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2
@@ -75,10 +86,10 @@ func (r RedeemRepository) ListPaged(ctx context.Context, limit, offset int) ([]R
 
 func (r RedeemRepository) Create(ctx context.Context, input CreateRedeemCodeInput) (RedeemCode, error) {
 	row := r.db.QueryRow(ctx, `
-		INSERT INTO redeem_codes (code_hash, code_prefix, batch_name, amount, max_uses, expires_at, created_by)
-		VALUES ($1,$2,$3,$4::numeric,$5,$6,NULLIF($7,'')::uuid)
-		RETURNING id::text, code_prefix, batch_name, amount::text, status, max_uses, used_count, expires_at, created_at
-	`, input.CodeHash, input.CodePrefix, input.BatchName, input.Amount, input.MaxUses, input.ExpiresAt, input.CreatedBy)
+		INSERT INTO redeem_codes (code_hash, code_plain, code_prefix, batch_name, amount, max_uses, expires_at, created_by)
+		VALUES ($1,$2,$3,$4,$5::numeric,$6,$7,NULLIF($8,'')::uuid)
+		RETURNING id::text, code_plain, code_prefix, batch_name, amount::text, status, max_uses, used_count, expires_at, created_at
+	`, input.CodeHash, input.CodePlain, input.CodePrefix, input.BatchName, input.Amount, input.MaxUses, input.ExpiresAt, input.CreatedBy)
 	return scanRedeemCode(row)
 }
 
@@ -158,12 +169,38 @@ func (r RedeemRepository) Redeem(ctx context.Context, userID, codeHash, clientIP
 	return code, nil
 }
 
+func (r RedeemRepository) Records(ctx context.Context, codeID string) ([]RedeemRecord, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT r.id::text, r.user_id::text, u.username, r.amount::text, COALESCE(r.client_ip::text, ''), r.created_at
+		FROM redeem_records r
+		JOIN users u ON u.id = r.user_id
+		WHERE r.redeem_code_id = $1
+		ORDER BY r.created_at DESC
+	`, codeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RedeemRecord{}
+	for rows.Next() {
+		var item RedeemRecord
+		if err := rows.Scan(&item.ID, &item.UserID, &item.Username, &item.Amount, &item.ClientIP, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 type redeemScanner interface {
 	Scan(dest ...any) error
 }
 
 func scanRedeemCode(row redeemScanner) (RedeemCode, error) {
 	var item RedeemCode
-	err := row.Scan(&item.ID, &item.Prefix, &item.BatchName, &item.Amount, &item.Status, &item.MaxUses, &item.UsedCount, &item.ExpiresAt, &item.CreatedAt)
+	err := row.Scan(&item.ID, &item.CodePlain, &item.Prefix, &item.BatchName, &item.Amount, &item.Status, &item.MaxUses, &item.UsedCount, &item.ExpiresAt, &item.CreatedAt)
+	if item.CodePlain != "" {
+		item.Code = item.CodePlain
+	}
 	return item, err
 }
