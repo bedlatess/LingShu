@@ -7,6 +7,7 @@ import (
 
 	"lingshu/backend/internal/pkg/httpx"
 	"lingshu/backend/internal/pkg/token"
+	"lingshu/backend/internal/repository"
 )
 
 type contextKey string
@@ -18,7 +19,11 @@ type AuthUser struct {
 	Role string
 }
 
-func JWTAuth(secret string) func(http.Handler) http.Handler {
+type userLookup interface {
+	FindByID(ctx context.Context, id string) (repository.User, error)
+}
+
+func JWTAuth(secret string, lookups ...userLookup) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			header := r.Header.Get("Authorization")
@@ -30,6 +35,13 @@ func JWTAuth(secret string) func(http.Handler) http.Handler {
 			if err != nil {
 				httpx.Error(w, http.StatusUnauthorized, "invalid token")
 				return
+			}
+			if len(lookups) > 0 && lookups[0] != nil {
+				user, err := lookups[0].FindByID(r.Context(), claims.UserID)
+				if err != nil || user.Status != "active" {
+					httpx.Error(w, http.StatusUnauthorized, "user disabled")
+					return
+				}
 			}
 			ctx := context.WithValue(r.Context(), authContextKey, AuthUser{ID: claims.UserID, Role: claims.Role})
 			next.ServeHTTP(w, r.WithContext(ctx))

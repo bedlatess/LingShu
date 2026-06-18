@@ -12,6 +12,7 @@ import (
 type AdminUserService struct {
 	users  repository.UserRepository
 	audits repository.AuditRepository
+	keys   repository.APIKeyRepository
 }
 
 type CreateUserInput struct {
@@ -32,8 +33,12 @@ type AdjustBalanceInput struct {
 	Remark string `json:"remark"`
 }
 
-func NewAdminUserService(users repository.UserRepository, audits repository.AuditRepository) AdminUserService {
-	return AdminUserService{users: users, audits: audits}
+func NewAdminUserService(users repository.UserRepository, audits repository.AuditRepository, keys ...repository.APIKeyRepository) AdminUserService {
+	service := AdminUserService{users: users, audits: audits}
+	if len(keys) > 0 {
+		service.keys = keys[0]
+	}
+	return service
 }
 
 func (s AdminUserService) List(ctx context.Context) ([]repository.User, error) {
@@ -101,6 +106,11 @@ func (s AdminUserService) Update(ctx context.Context, actorID, id string, input 
 	})
 	if err != nil {
 		return repository.User{}, err
+	}
+	if input.Status != nil && *input.Status == "banned" && s.keys.HasStore() {
+		if err := s.keys.DisableByUser(ctx, id); err != nil {
+			return repository.User{}, err
+		}
 	}
 	_ = s.audits.Write(ctx, repository.AuditEntry{
 		ActorID:    actorID,

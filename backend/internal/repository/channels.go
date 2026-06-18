@@ -25,6 +25,7 @@ type Channel struct {
 	LastSuccessAt    *time.Time `json:"last_success_at,omitempty"`
 	LastErrorAt      *time.Time `json:"last_error_at,omitempty"`
 	LastErrorMessage string     `json:"last_error_message"`
+	BoundCount       int        `json:"bound_count"`
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
 }
@@ -98,12 +99,19 @@ func (r ChannelRepository) ListPaged(ctx context.Context, limit, offset int) ([]
 		return nil, 0, err
 	}
 	rows, err := r.db.Query(ctx, `
-		SELECT id::text, name, provider_type, base_url, status, weight, timeout_seconds,
-		       rpm_limit, concurrency_limit, fail_threshold, fail_count, health,
-		       last_success_at, last_error_at, COALESCE(last_error_message, ''), created_at, updated_at
-		FROM upstream_channels
-		WHERE deleted_at IS NULL
-		ORDER BY created_at DESC
+		SELECT c.id::text, c.name, c.provider_type, c.base_url, c.status, c.weight, c.timeout_seconds,
+		       c.rpm_limit, c.concurrency_limit, c.fail_threshold, c.fail_count, c.health,
+		       c.last_success_at, c.last_error_at, COALESCE(c.last_error_message, ''),
+		       COALESCE(b.bound_count, 0)::int, c.created_at, c.updated_at
+		FROM upstream_channels c
+		LEFT JOIN (
+			SELECT channel_id, COUNT(*)::int AS bound_count
+			FROM channel_models
+			WHERE status='enabled'
+			GROUP BY channel_id
+		) AS b ON b.channel_id = c.id
+		WHERE c.deleted_at IS NULL
+		ORDER BY c.created_at DESC
 		LIMIT $1 OFFSET $2
 	`, limit, offset)
 	if err != nil {
@@ -127,14 +135,14 @@ func (r ChannelRepository) FindByID(ctx context.Context, id string) (Channel, er
 	err := r.db.QueryRow(ctx, `
 		SELECT id::text, name, provider_type, base_url, status, weight, timeout_seconds,
 		       rpm_limit, concurrency_limit, fail_threshold, fail_count, health,
-		       last_success_at, last_error_at, COALESCE(last_error_message, ''), created_at, updated_at
+		       last_success_at, last_error_at, COALESCE(last_error_message, ''), 0::int, created_at, updated_at
 		FROM upstream_channels
 		WHERE id=$1 AND deleted_at IS NULL
 	`, id).Scan(
 		&item.ID, &item.Name, &item.ProviderType, &item.BaseURL, &item.Status,
 		&item.Weight, &item.TimeoutSeconds, &item.RPMLimit, &item.ConcurrencyLimit,
 		&item.FailThreshold, &item.FailCount, &item.Health, &item.LastSuccessAt,
-		&item.LastErrorAt, &item.LastErrorMessage, &item.CreatedAt, &item.UpdatedAt,
+		&item.LastErrorAt, &item.LastErrorMessage, &item.BoundCount, &item.CreatedAt, &item.UpdatedAt,
 	)
 	return item, err
 }
@@ -148,7 +156,7 @@ func (r ChannelRepository) Detail(ctx context.Context, id string) (ChannelDetail
 		SELECT cm.id::text, cm.model_id::text, m.public_name, cm.upstream_model_name, cm.status, cm.created_at
 		FROM channel_models cm
 		JOIN models m ON m.id = cm.model_id AND m.deleted_at IS NULL
-		WHERE cm.channel_id=$1
+		WHERE cm.channel_id=$1 AND cm.status='enabled'
 		ORDER BY cm.created_at DESC
 	`, id)
 	if err != nil {
@@ -189,7 +197,7 @@ func (r ChannelRepository) Create(ctx context.Context, input ChannelInput, encry
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		RETURNING id::text, name, provider_type, base_url, status, weight, timeout_seconds,
 		       rpm_limit, concurrency_limit, fail_threshold, fail_count, health,
-		       last_success_at, last_error_at, COALESCE(last_error_message, ''), created_at, updated_at
+		       last_success_at, last_error_at, COALESCE(last_error_message, ''), 0::int, created_at, updated_at
 	`, input.Name, input.ProviderType, input.BaseURL, encryptedKey, input.Status, input.Weight, input.TimeoutSeconds, input.RPMLimit, input.ConcurrencyLimit, input.FailThreshold)
 	return scanChannel(row)
 }
@@ -204,7 +212,7 @@ func (r ChannelRepository) Update(ctx context.Context, id string, input ChannelI
 		WHERE id=$1 AND deleted_at IS NULL
 		RETURNING id::text, name, provider_type, base_url, status, weight, timeout_seconds,
 		       rpm_limit, concurrency_limit, fail_threshold, fail_count, health,
-		       last_success_at, last_error_at, COALESCE(last_error_message, ''), created_at, updated_at
+		       last_success_at, last_error_at, COALESCE(last_error_message, ''), 0::int, created_at, updated_at
 	`, id, input.Name, input.ProviderType, input.BaseURL, encryptedKey, input.Status, input.Weight, input.TimeoutSeconds, input.RPMLimit, input.ConcurrencyLimit, input.FailThreshold)
 	return scanChannel(row)
 }
@@ -274,7 +282,7 @@ func scanChannel(row channelScanner) (Channel, error) {
 		&item.ID, &item.Name, &item.ProviderType, &item.BaseURL, &item.Status,
 		&item.Weight, &item.TimeoutSeconds, &item.RPMLimit, &item.ConcurrencyLimit,
 		&item.FailThreshold, &item.FailCount, &item.Health, &item.LastSuccessAt,
-		&item.LastErrorAt, &item.LastErrorMessage, &item.CreatedAt, &item.UpdatedAt,
+		&item.LastErrorAt, &item.LastErrorMessage, &item.BoundCount, &item.CreatedAt, &item.UpdatedAt,
 	)
 	return item, err
 }

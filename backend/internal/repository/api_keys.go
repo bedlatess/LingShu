@@ -2,11 +2,13 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 type APIKey struct {
@@ -46,11 +48,20 @@ type UpdateAPIKeyParams struct {
 }
 
 type APIKeyRepository struct {
-	db *pgxpool.Pool
+	db    *pgxpool.Pool
+	redis *redis.Client
 }
 
 func NewAPIKeyRepository(db *pgxpool.Pool) APIKeyRepository {
 	return APIKeyRepository{db: db}
+}
+
+func NewAPIKeyRepositoryWithCache(db *pgxpool.Pool, redisClient *redis.Client) APIKeyRepository {
+	return APIKeyRepository{db: db, redis: redisClient}
+}
+
+func (r APIKeyRepository) HasStore() bool {
+	return r.db != nil
 }
 
 func (r APIKeyRepository) ListByUser(ctx context.Context, userID string) ([]APIKey, error) {
@@ -129,6 +140,7 @@ func (r APIKeyRepository) Create(ctx context.Context, params CreateAPIKeyParams)
 }
 
 func (r APIKeyRepository) UpdateStatus(ctx context.Context, id, status string) error {
+	_ = r.InvalidateByID(ctx, id)
 	tag, err := r.db.Exec(ctx, "UPDATE api_keys SET status=$2, updated_at=now() WHERE id=$1 AND deleted_at IS NULL", id, status)
 	if err != nil {
 		return err
@@ -140,6 +152,7 @@ func (r APIKeyRepository) UpdateStatus(ctx context.Context, id, status string) e
 }
 
 func (r APIKeyRepository) UpdateForUser(ctx context.Context, params UpdateAPIKeyParams) (APIKey, error) {
+	_ = r.InvalidateByID(ctx, params.ID)
 	row := r.db.QueryRow(ctx, `
 		UPDATE api_keys
 		SET name=CASE WHEN $3='' THEN name ELSE $3 END,
@@ -152,6 +165,7 @@ func (r APIKeyRepository) UpdateForUser(ctx context.Context, params UpdateAPIKey
 }
 
 func (r APIKeyRepository) DeleteForUser(ctx context.Context, id, userID string) error {
+	_ = r.InvalidateByID(ctx, id)
 	tag, err := r.db.Exec(ctx, "DELETE FROM api_keys WHERE id=$1 AND user_id=$2", id, userID)
 	if err != nil {
 		return err
@@ -163,6 +177,7 @@ func (r APIKeyRepository) DeleteForUser(ctx context.Context, id, userID string) 
 }
 
 func (r APIKeyRepository) Delete(ctx context.Context, id string) error {
+	_ = r.InvalidateByID(ctx, id)
 	tag, err := r.db.Exec(ctx, "UPDATE api_keys SET deleted_at=now(), status='disabled', updated_at=now() WHERE id=$1 AND deleted_at IS NULL", id)
 	if err != nil {
 		return err
@@ -175,6 +190,19 @@ func (r APIKeyRepository) Delete(ctx context.Context, id string) error {
 
 func (r APIKeyRepository) FindPrincipalByHash(ctx context.Context, hash string) (APIKeyPrincipal, error) {
 	var principal APIKeyPrincipal
+	if r.redis != nil {
+		payload, err := r.redis.Get(ctx, apiKeyCacheKey(hash)).Bytes()
+		if err == nil {
+			if jsonErr := json.Unmarshal(payload, &principal); jsonErr == nil {
+				if balanceErr := r.refreshPrincipalBalance(ctx, &principal); balanceErr != nil {
+					return APIKeyPrincipal{}, balanceErr
+				}
+				return principal, nil
+			}
+		} else if err != redis.Nil {
+			// Cache failures should not break gateway authentication.
+		}
+	}
 	err := r.db.QueryRow(ctx, `
 		SELECT k.id::text, u.id::text, u.role, u.status, k.status, u.balance::text,
 		       k.rpm_limit, k.concurrency_limit
@@ -182,7 +210,77 @@ func (r APIKeyRepository) FindPrincipalByHash(ctx context.Context, hash string) 
 		JOIN users u ON u.id = k.user_id
 		WHERE k.key_hash=$1 AND k.deleted_at IS NULL
 	`, hash).Scan(&principal.APIKeyID, &principal.UserID, &principal.UserRole, &principal.UserStatus, &principal.KeyStatus, &principal.Balance, &principal.RPMLimit, &principal.ConcurrencyLimit)
+	if err == nil && r.redis != nil {
+		if payload, jsonErr := json.Marshal(principal); jsonErr == nil {
+			_ = r.redis.Set(ctx, apiKeyCacheKey(hash), payload, time.Minute).Err()
+		}
+	}
 	return principal, err
+}
+
+func (r APIKeyRepository) DisableByUser(ctx context.Context, userID string) error {
+	hashes, err := r.hashesByUser(ctx, userID)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.Exec(ctx, "UPDATE api_keys SET status='disabled', updated_at=now() WHERE user_id=$1 AND deleted_at IS NULL", userID)
+	if err != nil {
+		return err
+	}
+	r.invalidateHashes(ctx, hashes)
+	return nil
+}
+
+func (r APIKeyRepository) refreshPrincipalBalance(ctx context.Context, principal *APIKeyPrincipal) error {
+	return r.db.QueryRow(ctx, `
+		SELECT u.balance::text
+		FROM api_keys k
+		JOIN users u ON u.id = k.user_id
+		WHERE k.id=$1 AND k.deleted_at IS NULL
+	`, principal.APIKeyID).Scan(&principal.Balance)
+}
+
+func (r APIKeyRepository) InvalidateByID(ctx context.Context, id string) error {
+	if r.redis == nil {
+		return nil
+	}
+	var hash string
+	if err := r.db.QueryRow(ctx, "SELECT key_hash FROM api_keys WHERE id=$1", id).Scan(&hash); err != nil {
+		return err
+	}
+	return r.redis.Del(ctx, apiKeyCacheKey(hash)).Err()
+}
+
+func (r APIKeyRepository) hashesByUser(ctx context.Context, userID string) ([]string, error) {
+	rows, err := r.db.Query(ctx, "SELECT key_hash FROM api_keys WHERE user_id=$1 AND deleted_at IS NULL", userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	hashes := []string{}
+	for rows.Next() {
+		var hash string
+		if err := rows.Scan(&hash); err != nil {
+			return nil, err
+		}
+		hashes = append(hashes, hash)
+	}
+	return hashes, rows.Err()
+}
+
+func (r APIKeyRepository) invalidateHashes(ctx context.Context, hashes []string) {
+	if r.redis == nil || len(hashes) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(hashes))
+	for _, hash := range hashes {
+		keys = append(keys, apiKeyCacheKey(hash))
+	}
+	_ = r.redis.Del(ctx, keys...).Err()
+}
+
+func apiKeyCacheKey(hash string) string {
+	return "apikey:" + hash
 }
 
 type apiKeyScanner interface {

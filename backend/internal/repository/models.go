@@ -129,7 +129,7 @@ func (r ModelRepository) Detail(ctx context.Context, id string) (ModelDetail, er
 		       cm.upstream_model_name, cm.status, cm.created_at
 		FROM channel_models cm
 		JOIN upstream_channels c ON c.id = cm.channel_id AND c.deleted_at IS NULL
-		WHERE cm.model_id=$1
+		WHERE cm.model_id=$1 AND cm.status='enabled'
 		ORDER BY cm.created_at DESC
 	`, id)
 	if err != nil {

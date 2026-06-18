@@ -1,5 +1,11 @@
 # LingShu API
 
+## 核心概念
+
+LingShu 的统一入口是“平台 API Key”。一个 Key 即可调用所有已上线模型，只需在 OpenAI SDK 的 `model` 字段填写模型 `public_name`，例如 `gpt-5.5`、`claude-opus-4-7`。不需要为每个上游创建独立 Key。
+
+模型可见性 = 该模型 `status='enabled'` 且至少绑定了一个 `enabled` 渠道。管理员新增渠道不会自动新增模型，模型和渠道是 N:N 关系，需要在管理端绑定。v1.3 起支持“渠道 -> 批量拉取上游 `/models` -> 一键导入为模型”功能。
+
 All API responses are JSON unless explicitly noted. Admin and user APIs use
 `Authorization: Bearer <jwt>`. Gateway APIs use a platform API key in the same
 header.

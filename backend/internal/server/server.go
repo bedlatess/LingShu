@@ -31,7 +31,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 	s := &Server{DB: db, Redis: redisClient}
 	userRepo := repository.NewUserRepository(db)
 	auditRepo := repository.NewAuditRepository(db)
-	apiKeyRepo := repository.NewAPIKeyRepository(db)
+	apiKeyRepo := repository.NewAPIKeyRepositoryWithCache(db, redisClient)
 	modelRepo := repository.NewModelRepository(db)
 	channelRepo := repository.NewChannelRepository(db)
 	gatewayRepo := repository.NewGatewayRepository(db)
@@ -41,7 +41,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 	settingsRepo := repository.NewSettingsRepository(db)
 	frozenStore := redisstore.NewFrozenStore(redisClient)
 	authService := service.NewAuthService(cfg, userRepo)
-	adminUserService := service.NewAdminUserService(userRepo, auditRepo)
+	adminUserService := service.NewAdminUserService(userRepo, auditRepo, apiKeyRepo)
 	apiKeyService := service.NewAPIKeyService(cfg, apiKeyRepo, auditRepo)
 	modelService := service.NewModelService(modelRepo, auditRepo)
 	channelService := service.NewChannelService(channelRepo, auditRepo)
@@ -82,13 +82,13 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 		r.Post("/logout", authHandler.Logout)
 		r.Post("/register", authHandler.Register)
 		r.Group(func(r chi.Router) {
-			r.Use(middleware.JWTAuth(cfg.JWTSecret))
+			r.Use(middleware.JWTAuth(cfg.JWTSecret, userRepo))
 			r.Get("/me", authHandler.Me)
 			r.Post("/change-password", authHandler.ChangePassword)
 		})
 	})
 	r.Route("/api/admin", func(r chi.Router) {
-		r.Use(middleware.JWTAuth(cfg.JWTSecret))
+		r.Use(middleware.JWTAuth(cfg.JWTSecret, userRepo))
 		r.Use(middleware.AdminOnly)
 		r.Get("/audit-count", adminUsers.AuditCount)
 		r.Get("/audit-logs", adminSettings.AuditLogs)
@@ -143,7 +143,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 		r.Get("/balance-ledger", adminReports.Ledger)
 	})
 	r.Route("/api/user", func(r chi.Router) {
-		r.Use(middleware.JWTAuth(cfg.JWTSecret))
+		r.Use(middleware.JWTAuth(cfg.JWTSecret, userRepo))
 		r.Get("/dashboard", userHandler.Dashboard)
 		r.Get("/models", userHandler.Models)
 		r.Get("/api-keys", userHandler.APIKeys)

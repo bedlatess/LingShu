@@ -94,6 +94,7 @@ export interface Channel {
   status: string;
   health: string;
   weight: number;
+  bound_count: number;
 }
 
 export interface Announcement {

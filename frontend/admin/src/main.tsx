@@ -257,6 +257,11 @@ function App() {
     return result.items;
   }
 
+  async function refreshCleanupHistory() {
+    const history = await api.cleanupHistory(10);
+    setCleanupHistory(history.items);
+  }
+
   const userColumns: ColumnsType<User> = [
     { title: "用户名", dataIndex: "username", render: (_, user) => <Link to={`/users/${user.id}`}>{user.username}</Link> },
     { title: "邮箱", dataIndex: "email" },
@@ -324,6 +329,7 @@ function App() {
     { title: "类型", dataIndex: "provider_type" },
     { title: "Base URL", dataIndex: "base_url" },
     { title: "权重", dataIndex: "weight" },
+    { title: "已绑模型", dataIndex: "bound_count", render: (_, channel) => <Link to={`/channels/${channel.id}`}>{channel.bound_count ?? 0}</Link> },
     { title: "状态", dataIndex: "status" },
     { title: "健康", dataIndex: "health" },
     {
@@ -474,7 +480,7 @@ function App() {
                   <Route path="/announcements" element={<AnnouncementsPage announcements={announcements} api={api} refresh={refresh} pager={announcementsPager} setPager={setAnnouncementsPager} />} />
                   <Route path="/redeem" element={<RedeemPage redeemCodes={redeemCodes} api={api} refresh={refresh} createdCodes={createdCodes} setCreatedCodes={setCreatedCodes} pager={redeemPager} setPager={setRedeemPager} />} />
                   <Route path="/reports" element={<ReportsPage api={api} dashboard={dashboard} logs={logs} ledger={ledger} logColumns={logColumns} ledgerColumns={ledgerColumns} logsPager={logsPager} setLogsPager={setLogsPager} ledgerPager={ledgerPager} setLedgerPager={setLedgerPager} />} />
-                  <Route path="/settings" element={<SettingsPage settings={settings} form={settingsForm} onSave={handlePatchSettings} cleanupHistory={cleanupHistory} onRunCleanup={handleRunCleanup} />} />
+                  <Route path="/settings" element={<SettingsPage settings={settings} form={settingsForm} onSave={handlePatchSettings} cleanupHistory={cleanupHistory} onRunCleanup={handleRunCleanup} onRefreshCleanupHistory={refreshCleanupHistory} />} />
                   <Route path="/audit" element={<AuditPage api={api} auditColumns={auditColumns} initialLogs={auditLogs} pager={auditPager} setPager={setAuditPager} />} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
