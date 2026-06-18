@@ -61,9 +61,9 @@ export function DashboardPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <StatCard icon={WalletCards} label="余额" value={formatMoney(dashboard.balance)} hint="账户当前可用余额" />
-          <StatCard icon={CreditCard} label="今日消费" value={formatMoney(dashboard.today_charge)} hint={`今日 ${dashboard.today_requests} 次请求`} tone="violet" />
-          <StatCard icon={Activity} label="本月消费" value={formatMoney(dashboard.month_charge)} hint="本月累计请求消费" tone="blue" />
-          <StatCard icon={Clock3} label="请求中预扣" value={formatMoney(dashboard.frozen)} hint="正在处理的请求金额" tone="amber" />
+          <StatCard icon={CreditCard} label="今日消费" value={formatMoney(dashboard.today_charge)} hint={`今日 ${dashboard.today_requests} 次请求`} />
+          <StatCard icon={Activity} label="本月消费" value={formatMoney(dashboard.month_charge)} hint="本月累计请求消费" />
+          <StatCard icon={Clock3} label="请求中预扣" value={formatMoney(dashboard.frozen)} hint="正在处理的请求金额" />
           <StatCard icon={Boxes} label="可用模型" value={String(dashboard.available_models)} hint="已启用模型数" />
         </div>
       )}
