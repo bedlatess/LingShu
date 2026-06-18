@@ -19,6 +19,18 @@ func Error(w http.ResponseWriter, status int, message string) {
 	JSON(w, status, ErrorResponse{Error: message})
 }
 
+func ErrorJSON(w http.ResponseWriter, status int, errType, message, code string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"error": map[string]any{
+			"message": message,
+			"type":    errType,
+			"code":    code,
+		},
+	})
+}
+
 func Decode(r *http.Request, target any) error {
 	defer r.Body.Close()
 	return json.NewDecoder(r.Body).Decode(target)

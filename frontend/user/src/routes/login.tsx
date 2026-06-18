@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { SiteNav } from "@/components/site-nav";
 import { useAuth } from "@/providers/auth";
 
 export function LoginPage() {
@@ -40,8 +41,9 @@ export function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center overflow-hidden px-4 py-10 soft-grid">
-      <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1fr_420px]">
+    <main className="min-h-screen overflow-hidden soft-grid">
+      <SiteNav />
+      <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 py-10 lg:grid-cols-[1fr_420px]">
         <section className="flex flex-col justify-between rounded-lg border border-white/10 bg-white/[0.035] p-8 backdrop-blur-xl">
           <div>
             <div className="mb-8 grid h-11 w-11 place-items-center rounded-lg bg-primary text-sm font-black text-primary-foreground shadow-glow">LS</div>

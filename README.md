@@ -30,6 +30,11 @@ Minimum required changes:
 - `POSTGRES_PASSWORD`
 - `ADMIN_USER`
 - `ADMIN_PASS`
+- `ALLOWED_ORIGINS=https://lingshu.example.com,https://admin.lingshu.example.com`
+
+Production should set `ALLOWED_ORIGINS` to concrete user/admin domains. When it
+is omitted, LingShu keeps the legacy compatibility behavior and allows any
+browser origin.
 
 2. Start the stack:
 

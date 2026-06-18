@@ -266,6 +266,25 @@ export interface LoginResponse {
   user: User;
 }
 
+export interface PublicModel {
+  id: string;
+  public_name: string;
+  type: string;
+  group?: string;
+  billing_mode: string;
+  input_price_per_1m: string;
+  output_price_per_1m: string;
+  price_per_call?: string;
+  currency: string;
+}
+
+export interface PublicSiteInfo {
+  site_name: string;
+  registration_enabled: boolean;
+  contact_info: string;
+  login_url: string;
+}
+
 export interface UserDashboard {
   balance: string;
   today_charge: string;

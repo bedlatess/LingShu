@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,12 +39,18 @@ func (h Handler) Models(w http.ResponseWriter, r *http.Request) {
 func (h Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 	principal, ok := middleware.CurrentGatewayPrincipal(r.Context())
 	if !ok {
-		httpx.Error(w, http.StatusUnauthorized, "unauthorized")
+		httpx.ErrorJSON(w, http.StatusUnauthorized, "invalid_api_key", "invalid api key", "invalid_api_key")
 		return
 	}
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		httpx.Error(w, http.StatusBadRequest, "invalid body")
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			message := "request body exceeds " + formatBytes(maxBytesErr.Limit)
+			httpx.ErrorJSON(w, http.StatusRequestEntityTooLarge, "request_too_large", message, "request_too_large")
+			return
+		}
+		httpx.ErrorJSON(w, http.StatusBadRequest, "invalid_request_error", "invalid body", "invalid_body")
 		return
 	}
 	principalDTO := service.GatewayPrincipal{
@@ -128,7 +135,7 @@ func writeGatewayError(w http.ResponseWriter, fallbackStatus int, err error) {
 	if fallbackStatus < 400 {
 		fallbackStatus = statusForGatewayError(err)
 	}
-	httpx.Error(w, fallbackStatus, err.Error())
+	writeGatewayLocalError(w, fallbackStatus, err)
 }
 
 func writeGatewayBody(w http.ResponseWriter, status int, body []byte) {
@@ -145,6 +152,26 @@ func writeGatewayBody(w http.ResponseWriter, status int, body []byte) {
 		return
 	}
 	_, _ = w.Write(body)
+}
+
+func writeGatewayLocalError(w http.ResponseWriter, status int, err error) {
+	switch {
+	case errors.Is(err, service.ErrInsufficientBalance):
+		httpx.ErrorJSON(w, http.StatusPaymentRequired, "insufficient_balance", "insufficient account balance", "insufficient_balance")
+	case errors.Is(err, service.ErrRateLimited):
+		httpx.ErrorJSON(w, http.StatusTooManyRequests, "rate_limit_exceeded", "rate limit exceeded", "rate_limit_exceeded")
+	case errors.Is(err, service.ErrNoHealthyChannel):
+		httpx.ErrorJSON(w, http.StatusBadGateway, "upstream_unavailable", "no healthy upstream channel", "no_healthy_channel")
+	default:
+		httpx.ErrorJSON(w, status, "gateway_error", err.Error(), "gateway_error")
+	}
+}
+
+func formatBytes(limit int64) string {
+	if limit > 0 && limit%(1024*1024) == 0 {
+		return strconv.FormatInt(limit/(1024*1024), 10) + " MiB"
+	}
+	return strconv.FormatInt(limit, 10) + " bytes"
 }
 
 func clientIP(r *http.Request) string {

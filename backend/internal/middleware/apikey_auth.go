@@ -17,13 +17,13 @@ func APIKeyAuth(keys repository.APIKeyRepository) func(http.Handler) http.Handle
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			header := r.Header.Get("Authorization")
 			if !strings.HasPrefix(header, "Bearer ") {
-				httpx.Error(w, http.StatusUnauthorized, "missing bearer token")
+				httpx.ErrorJSON(w, http.StatusUnauthorized, "invalid_api_key", "invalid api key", "invalid_api_key")
 				return
 			}
 			raw := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
 			principal, err := keys.FindPrincipalByHash(r.Context(), apikey.Hash(raw))
 			if err != nil || principal.UserStatus != "active" || principal.KeyStatus != "active" {
-				httpx.Error(w, http.StatusUnauthorized, "invalid api key")
+				httpx.ErrorJSON(w, http.StatusUnauthorized, "invalid_api_key", "invalid api key", "invalid_api_key")
 				return
 			}
 			ctx := context.WithValue(r.Context(), gatewayContextKey, principal)

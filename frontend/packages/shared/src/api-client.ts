@@ -1,5 +1,5 @@
 ﻿import type { APIKey, AdminDashboard, Announcement, AuditLog, Channel, ChannelDetail, CreatedAPIKey, DailyStat, GatewayLog, HealthResponse, LedgerRecord, LoginResponse, ModelConfig, ModelDetail, ModelStat, RedeemCode, ReportRow, SystemSetting, User } from "./admin-types";
-import type { ChannelModelImportInput, ChannelModelImportResult, ChannelModelSyncResult, CleanupHistoryEntry, CleanupResult, PaginatedResponse } from "./types";
+import type { ChannelModelImportInput, ChannelModelImportResult, ChannelModelSyncResult, CleanupHistoryEntry, CleanupResult, PaginatedResponse, PublicModel, PublicSiteInfo } from "./types";
 import type { UserDashboard, UserGatewayLog, UserLedgerRecord, UserModelConfig } from "./user-types";
 
 const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
@@ -88,6 +88,8 @@ export function createAPI(token?: string) {
         method: "POST",
         body: JSON.stringify({ login, password })
       }),
+    publicModels: () => request<{ items: PublicModel[] }>("/api/public/models"),
+    siteInfo: () => request<PublicSiteInfo>("/api/public/site-info"),
     me: () => request<User>("/api/auth/me"),
     listUsers: (page?: number, limit?: number) => request<PaginatedResponse<User>>(withQuery("/api/admin/users", { page, limit })),
     getUser: (id: string) => request<User>(`/api/admin/users/${id}`),

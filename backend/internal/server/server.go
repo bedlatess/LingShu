@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -14,6 +15,7 @@ import (
 	adminhandler "lingshu/backend/internal/handler/admin"
 	authhandler "lingshu/backend/internal/handler/auth"
 	gatewayhandler "lingshu/backend/internal/handler/gateway"
+	publichandler "lingshu/backend/internal/handler/public"
 	userhandler "lingshu/backend/internal/handler/user"
 	"lingshu/backend/internal/job"
 	"lingshu/backend/internal/middleware"
@@ -70,13 +72,19 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 	adminCleanup := adminhandler.NewCleanupHandler(cleaner)
 	userReports := userhandler.NewReportHandler(reportService)
 	gatewayHandler := gatewayhandler.New(gatewayService)
+	publicHandler := publichandler.New(db)
 	if cfg.CleanupEnabled {
 		job.NewScheduler(cleaner).Start(context.Background())
 	}
+	if cfg.ChannelHealerEnabled {
+		job.NewChannelHealer(channelRepo, channelService, redisClient, cfg.ChannelHealerIntervalSeconds, cfg.ChannelHealerSuccessThreshold).Start(context.Background())
+	}
 
 	r := chi.NewRouter()
-	r.Use(cors)
+	r.Use(corsWith(cfg.AllowedOrigins))
 	r.Get("/healthz", s.healthz)
+	r.Get("/api/public/models", publicHandler.ListModels)
+	r.Get("/api/public/site-info", publicHandler.SiteInfo)
 	r.Route("/api/auth", func(r chi.Router) {
 		r.Post("/login", authHandler.Login)
 		r.Post("/logout", authHandler.Logout)
@@ -160,6 +168,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 		r.Get("/usage/stats/models", userReports.Models)
 	})
 	r.Route("/v1", func(r chi.Router) {
+		r.Use(middleware.MaxBody(gatewayMaxBodyBytes(cfg.GatewayMaxBodyBytes)))
 		r.Use(middleware.APIKeyAuth(apiKeyRepo))
 		r.Get("/models", gatewayHandler.Models)
 		r.Post("/chat/completions", gatewayHandler.ChatCompletions)
@@ -167,22 +176,36 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 	return r
 }
 
-func cors(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		if origin != "" {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Vary", "Origin")
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
-		}
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+func gatewayMaxBodyBytes(value int64) int64 {
+	if value <= 0 {
+		return 2 * 1024 * 1024
+	}
+	return value
+}
+
+func corsWith(allowed []string) func(http.Handler) http.Handler {
+	allowAll := len(allowed) == 1 && allowed[0] == "*"
+	set := make(map[string]bool, len(allowed))
+	for _, origin := range allowed {
+		set[strings.TrimSpace(origin)] = true
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if origin != "" && (allowAll || set[origin]) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Vary", "Origin")
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+			}
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {

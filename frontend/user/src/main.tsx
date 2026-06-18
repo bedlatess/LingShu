@@ -9,6 +9,7 @@ import { Toaster } from "@/components/ui/sonner";
 import "./styles.css";
 
 const LoginPage = lazy(() => import("@/routes/login").then((module) => ({ default: module.LoginPage })));
+const PricingPage = lazy(() => import("@/routes/pricing").then((module) => ({ default: module.PricingPage })));
 const DashboardPage = lazy(() => import("@/routes/dashboard").then((module) => ({ default: module.DashboardPage })));
 const ApiKeysPage = lazy(() => import("@/routes/api-keys").then((module) => ({ default: module.ApiKeysPage })));
 const UsagePage = lazy(() => import("@/routes/usage").then((module) => ({ default: module.UsagePage })));
@@ -38,13 +39,19 @@ function ProtectedRoute() {
   );
 }
 
+function HomeRoute() {
+  const { token } = useAuth();
+  return <Navigate to={token ? "/dashboard" : "/pricing"} replace />;
+}
+
 const router = createBrowserRouter([
   { path: "/login", element: lazyPage(<LoginPage />) },
+  { path: "/pricing", element: lazyPage(<PricingPage />) },
+  { path: "/", element: <HomeRoute /> },
   {
     path: "/",
     element: <ProtectedRoute />,
     children: [
-      { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: "dashboard", element: lazyPage(<DashboardPage />) },
       { path: "api-keys", element: lazyPage(<ApiKeysPage />) },
       { path: "usage", element: lazyPage(<UsagePage />) },
@@ -54,7 +61,7 @@ const router = createBrowserRouter([
       { path: "settings", element: lazyPage(<SettingsPage />) }
     ]
   },
-  { path: "*", element: <Navigate to="/dashboard" replace /> }
+  { path: "*", element: <Navigate to="/" replace /> }
 ]);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

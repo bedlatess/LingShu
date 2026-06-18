@@ -188,6 +188,39 @@ func (r ChannelRepository) FindSecretByID(ctx context.Context, id string) (Chann
 	return item, err
 }
 
+func (r ChannelRepository) ListUnhealthy(ctx context.Context) ([]Channel, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id::text, name, provider_type, base_url, status, weight, timeout_seconds,
+		       rpm_limit, concurrency_limit, fail_threshold, fail_count, health,
+		       last_success_at, last_error_at, COALESCE(last_error_message, ''), last_latency_ms, 0::int, created_at, updated_at
+		FROM upstream_channels
+		WHERE health='unhealthy' AND deleted_at IS NULL
+		ORDER BY last_error_at ASC NULLS FIRST, created_at ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Channel{}
+	for rows.Next() {
+		item, err := scanChannel(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (r ChannelRepository) MarkHealthy(ctx context.Context, id string) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE upstream_channels
+		SET health='healthy', fail_count=0, last_success_at=now(), last_error_message=NULL, updated_at=now()
+		WHERE id=$1 AND deleted_at IS NULL
+	`, id)
+	return err
+}
+
 func (r ChannelRepository) Detail(ctx context.Context, id string) (ChannelDetail, error) {
 	channel, err := r.FindByID(ctx, id)
 	if err != nil {
