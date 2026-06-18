@@ -1,4 +1,6 @@
 import React from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Bell, Pin } from "lucide-react";
 import type { Announcement } from "@lingshu/shared/user-types";
 
@@ -31,7 +33,9 @@ export function AnnouncementsPage() {
                   <h3 className="font-semibold">{item.title}</h3>
                   {item.pinned ? <Badge><Pin className="mr-1 h-3 w-3" />置顶</Badge> : null}
                 </div>
-                <p className="whitespace-pre-wrap text-sm leading-7 text-muted-foreground">{item.content}</p>
+                <div className="prose prose-invert max-w-none text-sm leading-7 text-muted-foreground">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.content}</ReactMarkdown>
+                </div>
               </CardContent>
             </Card>
           ))}

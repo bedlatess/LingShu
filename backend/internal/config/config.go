@@ -20,6 +20,11 @@ type Config struct {
 	DefaultUserRPMLimit          int
 	DefaultUserConcurrencyLimit  int
 	DefaultGatewayTimeoutSeconds int
+	CleanupEnabled               bool
+	CleanupLogRetentionDays      int
+	CleanupAuditRetentionDays    int
+	CleanupAnnouncementGraceDays int
+	CleanupRedeemGraceDays       int
 	AdminUser                    string
 	AdminPass                    string
 }
@@ -40,6 +45,11 @@ func Load() Config {
 		DefaultUserRPMLimit:          envInt("DEFAULT_USER_RPM_LIMIT", 60),
 		DefaultUserConcurrencyLimit:  envInt("DEFAULT_USER_CONCURRENCY_LIMIT", 5),
 		DefaultGatewayTimeoutSeconds: envInt("DEFAULT_GATEWAY_TIMEOUT_SECONDS", 120),
+		CleanupEnabled:               envBool("CLEANUP_ENABLED", false),
+		CleanupLogRetentionDays:      envInt("CLEANUP_LOG_RETENTION_DAYS", 30),
+		CleanupAuditRetentionDays:    envInt("CLEANUP_AUDIT_RETENTION_DAYS", 90),
+		CleanupAnnouncementGraceDays: envInt("CLEANUP_ANNOUNCEMENT_GRACE_DAYS", 30),
+		CleanupRedeemGraceDays:       envInt("CLEANUP_REDEEM_GRACE_DAYS", 90),
 		AdminUser:                    env("ADMIN_USER", "admin"),
 		AdminPass:                    env("ADMIN_PASS", "change-me"),
 	}

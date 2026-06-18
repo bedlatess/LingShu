@@ -1,0 +1,10 @@
+UPDATE system_settings SET description = 'Public site name' WHERE key = 'site_name';
+UPDATE system_settings SET description = 'Whether users can register themselves' WHERE key = 'registration_enabled';
+UPDATE system_settings SET description = 'Default model rate multiplier' WHERE key = 'default_rate_multiplier';
+UPDATE system_settings SET description = 'Platform API key prefix' WHERE key = 'api_key_prefix';
+UPDATE system_settings SET description = 'Prefer stable upstream channel for the same session' WHERE key = 'sticky_session_enabled';
+UPDATE system_settings SET description = 'Maximum upstream retry attempts' WHERE key = 'max_retry';
+UPDATE system_settings SET description = 'Default per-key RPM limit' WHERE key = 'default_rpm_limit';
+UPDATE system_settings SET description = 'Default per-key concurrency limit' WHERE key = 'default_concurrency_limit';
+UPDATE system_settings SET description = 'Initial balance for new users' WHERE key = 'default_user_balance';
+UPDATE system_settings SET description = 'Support contact information' WHERE key = 'contact_info';

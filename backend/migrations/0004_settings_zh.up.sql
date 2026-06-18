@@ -1,0 +1,10 @@
+UPDATE system_settings SET description = '站点名称' WHERE key = 'site_name';
+UPDATE system_settings SET description = '是否允许用户注册' WHERE key = 'registration_enabled';
+UPDATE system_settings SET description = '默认模型计费倍率' WHERE key = 'default_rate_multiplier';
+UPDATE system_settings SET description = '平台 API 密钥前缀' WHERE key = 'api_key_prefix';
+UPDATE system_settings SET description = '同会话粘性路由（优先复用同一上游渠道）' WHERE key = 'sticky_session_enabled';
+UPDATE system_settings SET description = '上游失败时的最大重试次数' WHERE key = 'max_retry';
+UPDATE system_settings SET description = '默认每密钥每分钟请求上限' WHERE key = 'default_rpm_limit';
+UPDATE system_settings SET description = '默认每密钥并发请求上限' WHERE key = 'default_concurrency_limit';
+UPDATE system_settings SET description = '新用户初始余额' WHERE key = 'default_user_balance';
+UPDATE system_settings SET description = '客服 / 联系方式' WHERE key = 'contact_info';

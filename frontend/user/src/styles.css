@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @theme {
   --color-background: hsl(var(--background));
@@ -95,5 +96,27 @@
       linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
       linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
     background-size: 34px 34px;
+  }
+
+  .prose {
+    color: hsl(var(--muted-foreground));
+  }
+
+  .prose h1,
+  .prose h2,
+  .prose h3,
+  .prose strong {
+    color: hsl(var(--foreground));
+  }
+
+  .prose a {
+    color: hsl(var(--primary));
+    text-decoration: none;
+  }
+
+  .prose code,
+  .prose pre {
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.07);
   }
 }

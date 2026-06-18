@@ -12,6 +12,7 @@ import {
   type Announcement,
   type AuditLog,
   type Channel,
+  type CleanupHistoryEntry,
   type GatewayLog,
   type LedgerRecord,
   type ModelConfig,
@@ -67,6 +68,7 @@ function App() {
   const [logs, setLogs] = useState<GatewayLog[]>([]);
   const [ledger, setLedger] = useState<LedgerRecord[]>([]);
   const [settings, setSettings] = useState<SystemSetting[]>([]);
+  const [cleanupHistory, setCleanupHistory] = useState<CleanupHistoryEntry[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [auditCount, setAuditCount] = useState<number | null>(null);
   const [usersPager, setUsersPager] = useState<Pager>({ page: 1, limit: 20, total: 0 });
@@ -95,7 +97,7 @@ function App() {
 
   async function refresh() {
     if (!token) return;
-    const [current, userList, audit, keyList, modelList, channelList, announcementList, redeemList, dash, logList, ledgerList, settingList, auditLogList] = await Promise.all([
+    const [current, userList, audit, keyList, modelList, channelList, announcementList, redeemList, dash, logList, ledgerList, settingList, auditLogList, cleanupList] = await Promise.all([
       api.me(),
       api.listUsers(usersPager.page, usersPager.limit),
       api.auditCount(),
@@ -108,7 +110,8 @@ function App() {
       api.adminLogs(logsPager.page, logsPager.limit),
       api.adminLedger(ledgerPager.page, ledgerPager.limit),
       api.listSettings(settingsPager.page, settingsPager.limit),
-      api.listAuditLogs(auditPager.page, auditPager.limit)
+      api.listAuditLogs(auditPager.page, auditPager.limit),
+      api.cleanupHistory(10)
     ]);
     setMe(current);
     setUsers(userList.items);
@@ -122,6 +125,7 @@ function App() {
     setLogs(logList.items);
     setLedger(ledgerList.items);
     setSettings(settingList.items);
+    setCleanupHistory(cleanupList.items);
     setAuditLogs(auditLogList.items);
     setUsersPager((prev) => ({ ...prev, total: userList.total }));
     setKeysPager((prev) => ({ ...prev, total: keyList.total }));
@@ -244,6 +248,13 @@ function App() {
       message.success("系统设置已保存");
       await refresh();
     }, "保存设置失败");
+  }
+
+  async function handleRunCleanup() {
+    const result = await api.runCleanup();
+    const history = await api.cleanupHistory(10);
+    setCleanupHistory(history.items);
+    return result.items;
   }
 
   const userColumns: ColumnsType<User> = [
@@ -463,7 +474,7 @@ function App() {
                   <Route path="/announcements" element={<AnnouncementsPage announcements={announcements} api={api} refresh={refresh} pager={announcementsPager} setPager={setAnnouncementsPager} />} />
                   <Route path="/redeem" element={<RedeemPage redeemCodes={redeemCodes} api={api} refresh={refresh} createdCodes={createdCodes} setCreatedCodes={setCreatedCodes} pager={redeemPager} setPager={setRedeemPager} />} />
                   <Route path="/reports" element={<ReportsPage api={api} dashboard={dashboard} logs={logs} ledger={ledger} logColumns={logColumns} ledgerColumns={ledgerColumns} logsPager={logsPager} setLogsPager={setLogsPager} ledgerPager={ledgerPager} setLedgerPager={setLedgerPager} />} />
-                  <Route path="/settings" element={<SettingsPage settings={settings} form={settingsForm} onSave={handlePatchSettings} />} />
+                  <Route path="/settings" element={<SettingsPage settings={settings} form={settingsForm} onSave={handlePatchSettings} cleanupHistory={cleanupHistory} onRunCleanup={handleRunCleanup} />} />
                   <Route path="/audit" element={<AuditPage api={api} auditColumns={auditColumns} initialLogs={auditLogs} pager={auditPager} setPager={setAuditPager} />} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>

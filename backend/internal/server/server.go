@@ -15,6 +15,7 @@ import (
 	authhandler "lingshu/backend/internal/handler/auth"
 	gatewayhandler "lingshu/backend/internal/handler/gateway"
 	userhandler "lingshu/backend/internal/handler/user"
+	"lingshu/backend/internal/job"
 	"lingshu/backend/internal/middleware"
 	redisstore "lingshu/backend/internal/redis"
 	"lingshu/backend/internal/repository"
@@ -50,6 +51,12 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 	reportService := service.NewReportService(reportRepo)
 	userPortalService := service.NewUserPortalService(userRepo, modelRepo, reportRepo, frozenStore)
 	settingsService := service.NewSettingsService(settingsRepo, auditRepo)
+	cleaner := job.NewCleaner(db, redisClient, job.CleanerConfig{
+		LogRetentionDays:      cfg.CleanupLogRetentionDays,
+		AuditRetentionDays:    cfg.CleanupAuditRetentionDays,
+		AnnouncementGraceDays: cfg.CleanupAnnouncementGraceDays,
+		RedeemGraceDays:       cfg.CleanupRedeemGraceDays,
+	})
 	authHandler := authhandler.New(authService)
 	adminUsers := adminhandler.NewUserHandler(adminUserService, apiKeyService, reportService)
 	adminKeys := adminhandler.NewAPIKeyHandler(apiKeyService)
@@ -60,8 +67,12 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 	userHandler := userhandler.New(announcementService, redeemService, apiKeyService, userPortalService)
 	adminReports := adminhandler.NewReportHandler(reportService)
 	adminSettings := adminhandler.NewSettingsHandler(settingsService, auditRepo)
+	adminCleanup := adminhandler.NewCleanupHandler(cleaner)
 	userReports := userhandler.NewReportHandler(reportService)
 	gatewayHandler := gatewayhandler.New(gatewayService)
+	if cfg.CleanupEnabled {
+		job.NewScheduler(cleaner).Start(context.Background())
+	}
 
 	r := chi.NewRouter()
 	r.Use(cors)
@@ -88,6 +99,8 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 		r.Get("/reports/by-channel", adminReports.ByChannel)
 		r.Get("/settings", adminSettings.List)
 		r.Patch("/settings", adminSettings.Patch)
+		r.Post("/cleanup/run", adminCleanup.Run)
+		r.Get("/cleanup/history", adminCleanup.History)
 		r.Get("/users", adminUsers.List)
 		r.Post("/users", adminUsers.Create)
 		r.Get("/users/{id}", adminUsers.Get)

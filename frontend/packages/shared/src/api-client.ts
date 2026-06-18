@@ -1,5 +1,5 @@
 ﻿import type { APIKey, AdminDashboard, Announcement, AuditLog, Channel, ChannelDetail, CreatedAPIKey, DailyStat, GatewayLog, HealthResponse, LedgerRecord, LoginResponse, ModelConfig, ModelDetail, ModelStat, RedeemCode, ReportRow, SystemSetting, User } from "./admin-types";
-import type { PaginatedResponse } from "./types";
+import type { CleanupHistoryEntry, CleanupResult, PaginatedResponse } from "./types";
 import type { UserDashboard, UserGatewayLog, UserLedgerRecord, UserModelConfig } from "./user-types";
 
 const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
@@ -156,6 +156,11 @@ export function createAPI(token?: string) {
         method: "PATCH",
         body: JSON.stringify({ items })
       }),
+    runCleanup: () =>
+      request<{ items: CleanupResult[] }>("/api/admin/cleanup/run", {
+        method: "POST"
+      }),
+    cleanupHistory: (limit = 20) => request<{ items: CleanupHistoryEntry[] }>(withQuery("/api/admin/cleanup/history", { limit })),
     listAuditLogs: (page?: number, limit?: number, filters?: { actor_id?: string; action?: string; target_type?: string; from?: string; to?: string }) =>
       request<PaginatedResponse<AuditLog>>(withQuery("/api/admin/audit-logs", { page, limit, ...filters })),
     listChannels: (page?: number, limit?: number) => request<PaginatedResponse<Channel>>(withQuery("/api/admin/channels", { page, limit })),

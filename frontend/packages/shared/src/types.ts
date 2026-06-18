@@ -58,6 +58,21 @@ export interface SystemSetting {
   updated_at: string;
 }
 
+export interface CleanupResult {
+  table: string;
+  deleted: number;
+  started_at: string;
+  ended_at: string;
+  err?: string;
+}
+
+export interface CleanupHistoryEntry {
+  id: string;
+  started_at: string;
+  ended_at: string;
+  results: CleanupResult[];
+}
+
 export interface AuditLog {
   id: string;
   actor_id: string;

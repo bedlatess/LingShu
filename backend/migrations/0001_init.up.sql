@@ -187,14 +187,14 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_created ON audit_logs(actor_id, 
 
 INSERT INTO system_settings (key, value, description)
 VALUES
-    ('site_name', 'LingShu', 'Public site name'),
-    ('registration_enabled', 'false', 'Whether users can register themselves'),
-    ('default_rate_multiplier', '1.2', 'Default model rate multiplier'),
-    ('api_key_prefix', 'lsk_live_', 'Platform API key prefix'),
-    ('sticky_session_enabled', 'true', 'Prefer stable upstream channel for the same session'),
-    ('max_retry', '2', 'Maximum upstream retry attempts'),
-    ('default_rpm_limit', '60', 'Default per-key RPM limit'),
-    ('default_concurrency_limit', '5', 'Default per-key concurrency limit'),
-    ('default_user_balance', '0', 'Initial balance for new users'),
-    ('contact_info', '', 'Support contact information')
+    ('site_name', 'LingShu', '站点名称'),
+    ('registration_enabled', 'false', '是否允许用户注册'),
+    ('default_rate_multiplier', '1.2', '默认模型计费倍率'),
+    ('api_key_prefix', 'lsk_live_', '平台 API 密钥前缀'),
+    ('sticky_session_enabled', 'true', '同会话粘性路由（优先复用同一上游渠道）'),
+    ('max_retry', '2', '上游失败时的最大重试次数'),
+    ('default_rpm_limit', '60', '默认每密钥每分钟请求上限'),
+    ('default_concurrency_limit', '5', '默认每密钥并发请求上限'),
+    ('default_user_balance', '0', '新用户初始余额'),
+    ('contact_info', '', '客服 / 联系方式')
 ON CONFLICT (key) DO NOTHING;
