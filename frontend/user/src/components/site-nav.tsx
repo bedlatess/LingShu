@@ -7,10 +7,10 @@ import { useAuth } from "@/providers/auth";
 export function SiteNav({ siteName = "LingShu" }: { siteName?: string }) {
   const { token, user } = useAuth();
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-background/75 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-border bg-surface">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link to="/" className="flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-xs font-black text-primary-foreground shadow-glow">LS</span>
+          <span className="grid h-9 w-9 place-items-center rounded-md border border-border bg-foreground text-xs font-black text-background">LS</span>
           <span className="text-sm font-semibold text-foreground">{siteName}</span>
         </Link>
         <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">

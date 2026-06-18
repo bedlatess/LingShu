@@ -18,6 +18,15 @@ const tabs = [
   ["logs", "请求日志"]
 ] as const;
 
+const CHART_COLORS = {
+  clay: "#C6613F",
+  clayFill: "#C6613F2A",
+  grid: "#D8D4CA",
+  axis: "#87867F",
+  tooltipBg: "#FAF9F5",
+  tooltipBorder: "#D8D4CA"
+};
+
 export function UsagePage() {
   const { api } = useAuth();
   const [active, setActive] = React.useState<(typeof tabs)[number][0]>("daily");
@@ -43,19 +52,39 @@ export function UsagePage() {
       </TabsList>
 
       {active === "daily" && (
-        <Card className="glass">
+        <Card>
           <CardHeader><CardTitle>每日消费</CardTitle></CardHeader>
           <CardContent>{daily.length ? <Chart data={daily} /> : <EmptyState title="暂无每日统计" description="产生调用后会按天展示请求数和消费走势。" />}</CardContent>
         </Card>
       )}
       {active === "models" && (
-        <Card className="glass">
+        <Card>
           <CardHeader><CardTitle>按模型统计</CardTitle></CardHeader>
           <CardContent>{models.length ? <ModelBars data={models} /> : <EmptyState title="暂无模型统计" description="模型消费分布会在这里出现。" />}</CardContent>
         </Card>
       )}
-      {active === "ledger" && <RecordList items={ledger.map((item) => ({ id: `${item.type}-${item.created_at}`, title: zhLedgerType(item.type), meta: item.remark, value: item.amount }))} empty="暂无记录" />}
-      {active === "logs" && <RecordList items={logs.map((item) => ({ id: item.request_id, title: zhStatus(item.status), meta: `${item.total_tokens} 个 token · 状态码 ${item.http_status}`, value: formatMoney(item.charge) }))} empty="暂无请求日志" />}
+      {active === "ledger" && (
+        <RecordList
+          items={ledger.map((item) => ({
+            id: `${item.type}-${item.created_at}`,
+            title: zhLedgerType(item.type),
+            meta: [formatDateTime(item.created_at), item.remark, `余额 ${formatMoney(item.balance_before)} → ${formatMoney(item.balance_after)}`].filter(Boolean).join(" · "),
+            value: formatMoney(item.amount)
+          }))}
+          empty="暂无记录"
+        />
+      )}
+      {active === "logs" && (
+        <RecordList
+          items={logs.map((item) => ({
+            id: item.request_id,
+            title: `${zhStatus(item.status)} · ${item.model_id || "未知模型"}`,
+            meta: [formatDateTime(item.created_at), `请求 ${shortID(item.request_id)}`, `${item.total_tokens} 个 token`, `状态码 ${item.http_status}`].join(" · "),
+            value: formatMoney(item.charge)
+          }))}
+          empty="暂无请求日志"
+        />
+      )}
     </div>
   );
 }
@@ -65,11 +94,11 @@ function Chart({ data }: { data: UserDailyStat[] }) {
     <MeasuredChart>
       {({ width, height }) => (
         <AreaChart data={data} width={width} height={height}>
-          <CartesianGrid stroke="rgba(255,255,255,.08)" vertical={false} />
-          <XAxis dataKey="day" stroke="rgba(255,255,255,.45)" tickLine={false} axisLine={false} />
-          <YAxis stroke="rgba(255,255,255,.45)" tickLine={false} axisLine={false} />
-          <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,.12)", borderRadius: 8 }} />
-          <Area type="monotone" dataKey="charge" stroke="#2dd4bf" fill="#2dd4bf33" strokeWidth={2} />
+          <CartesianGrid stroke={CHART_COLORS.grid} vertical={false} />
+          <XAxis dataKey="day" stroke={CHART_COLORS.axis} tickLine={false} axisLine={false} />
+          <YAxis stroke={CHART_COLORS.axis} tickLine={false} axisLine={false} />
+          <Tooltip contentStyle={{ background: CHART_COLORS.tooltipBg, border: `1px solid ${CHART_COLORS.tooltipBorder}`, borderRadius: 6, color: "#141413" }} />
+          <Area type="monotone" dataKey="charge" stroke={CHART_COLORS.clay} fill={CHART_COLORS.clayFill} strokeWidth={2} />
         </AreaChart>
       )}
     </MeasuredChart>
@@ -81,11 +110,11 @@ function ModelBars({ data }: { data: UserModelStat[] }) {
     <MeasuredChart>
       {({ width, height }) => (
         <BarChart data={data} width={width} height={height}>
-          <CartesianGrid stroke="rgba(255,255,255,.08)" vertical={false} />
-          <XAxis dataKey="model_id" stroke="rgba(255,255,255,.45)" tickLine={false} axisLine={false} />
-          <YAxis stroke="rgba(255,255,255,.45)" tickLine={false} axisLine={false} />
-          <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,.12)", borderRadius: 8 }} />
-          <Bar dataKey="charge" fill="#a78bfa" radius={[8, 8, 0, 0]} />
+          <CartesianGrid stroke={CHART_COLORS.grid} vertical={false} />
+          <XAxis dataKey="model_id" stroke={CHART_COLORS.axis} tickLine={false} axisLine={false} />
+          <YAxis stroke={CHART_COLORS.axis} tickLine={false} axisLine={false} />
+          <Tooltip contentStyle={{ background: CHART_COLORS.tooltipBg, border: `1px solid ${CHART_COLORS.tooltipBorder}`, borderRadius: 6, color: "#141413" }} />
+          <Bar dataKey="charge" fill={CHART_COLORS.clay} radius={[6, 6, 0, 0]} />
         </BarChart>
       )}
     </MeasuredChart>
@@ -94,15 +123,26 @@ function ModelBars({ data }: { data: UserModelStat[] }) {
 
 function RecordList({ items, empty }: { items: Array<{ id: string; title: string; meta: string; value: string }>; empty: string }) {
   return (
-    <Card className="glass">
+    <Card>
       <CardContent className="grid gap-3 p-5">
         {items.length ? items.map((item) => (
-          <div key={item.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.035] p-3">
+          <div key={item.id} className="flex items-center justify-between rounded-lg border border-border bg-[var(--bg-subtle)] p-3">
             <div><p className="text-sm font-medium">{item.title}</p><p className="text-xs text-muted-foreground">{item.meta}</p></div>
-            <strong className="text-sm">{item.value}</strong>
+            <strong className="font-serif text-sm">{item.value}</strong>
           </div>
         )) : <EmptyState title={empty} description="数据会在对应业务发生后自动出现。" />}
       </CardContent>
     </Card>
   );
+}
+
+function formatDateTime(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("zh-CN", { hour12: false });
+}
+
+function shortID(value: string) {
+  return value.length > 16 ? `${value.slice(0, 8)}...${value.slice(-6)}` : value;
 }

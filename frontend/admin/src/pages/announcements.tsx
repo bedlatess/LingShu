@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button, Card, Form, Input, Modal, Select, Space, Table, Tabs, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { createAPI, type Announcement } from "@lingshu/shared";
+import { createAPI, designTokens, type Announcement } from "@lingshu/shared";
 
 import { type Pager, runWrite, tablePagination } from "./admin-page-utils";
 
@@ -20,7 +20,7 @@ const defaultAnnouncement: AnnouncementFormValues = {
 
 function MarkdownPreview({ value }: { value?: string }) {
   return (
-    <div style={{ minHeight: 220, padding: 16, border: "1px solid #f0f0f0", borderRadius: 8, background: "#fff" }}>
+    <div style={{ minHeight: 220, padding: 16, border: `1px solid ${designTokens.colors.border}`, borderRadius: 6, background: designTokens.colors.surface, color: designTokens.colors.ink }}>
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{value || "暂无内容"}</ReactMarkdown>
     </div>
   );

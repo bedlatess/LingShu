@@ -46,7 +46,7 @@ export function SettingsPage() {
     <div className="page-grid">
       <PageHeader eyebrow="账户设置" title="账户设置" description="查看当前账户信息并管理登录密码。" />
       <div className="grid gap-5 lg:grid-cols-2">
-        <Card className="glass">
+        <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><UserRound className="h-4 w-4 text-primary" />账户</CardTitle></CardHeader>
           <CardContent className="grid gap-3 text-sm">
             <Row label="用户名" value={user?.username ?? "-"} />
@@ -55,7 +55,7 @@ export function SettingsPage() {
             <Row label="状态" value={zhStatus(user?.status)} />
           </CardContent>
         </Card>
-        <Card className="glass">
+        <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" />余额安全</CardTitle></CardHeader>
           <CardContent className="grid gap-3 text-sm">
             <Row label="当前余额" value={formatMoney(user?.balance)} />
@@ -63,7 +63,7 @@ export function SettingsPage() {
           </CardContent>
         </Card>
       </div>
-      <Card className="glass">
+      <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><KeyRound className="h-4 w-4 text-primary" />修改密码</CardTitle></CardHeader>
         <CardContent>
           <form className="grid max-w-md gap-4" onSubmit={changePassword}>
@@ -89,9 +89,9 @@ export function SettingsPage() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2">
+    <div className="flex items-center justify-between rounded-lg border border-border bg-[var(--bg-subtle)] px-3 py-2">
       <span className="text-muted-foreground">{label}</span>
-      <strong>{value}</strong>
+      <strong className="text-foreground">{value}</strong>
     </div>
   );
 }

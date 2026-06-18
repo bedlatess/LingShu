@@ -1,0 +1,99 @@
+:root {
+  --bg: #f0eee6;
+  --bg-subtle: #e8e6dc;
+  --surface: #faf9f5;
+  --ink: #141413;
+  --ink-muted: #5f5d57;
+  --ink-faint: #87867f;
+  --border-c: #d8d4ca;
+  --border-strong: #b0aea5;
+  --clay: #c6613f;
+  --clay-hover: #a94f31;
+  --clay-soft: #e3dacc;
+  --font-serif: "Tiempos Text", "Source Han Serif SC", "Songti SC", Georgia, "Times New Roman", serif;
+  --font-sans: Inter, "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+h1,
+h2,
+h3,
+.ant-typography h1,
+.ant-typography h2,
+.ant-typography h3,
+.admin-serif {
+  font-family: var(--font-serif);
+}
+
+.admin-auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+}
+
+.admin-auth-card {
+  width: min(380px, calc(100vw - 32px));
+  border-color: var(--border-c);
+  background: var(--surface);
+}
+
+.admin-sider {
+  border-right: 1px solid var(--border-c);
+  background: var(--bg-subtle) !important;
+}
+
+.admin-logo {
+  padding: 20px 20px 16px;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.admin-logo-subtitle {
+  margin-top: 4px;
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.admin-header {
+  background: var(--surface) !important;
+  border-bottom: 1px solid var(--border-c);
+}
+
+.admin-content {
+  padding: 24px;
+  background: var(--bg);
+}
+
+.admin-menu.ant-menu-light {
+  background: transparent;
+  border-inline-end: 0;
+}
+
+.admin-menu .ant-menu-item {
+  color: var(--ink-muted);
+  border-radius: 6px;
+}
+
+.admin-menu .ant-menu-item-selected {
+  color: var(--clay-hover);
+  background: var(--clay-soft);
+}

@@ -40,13 +40,13 @@ export function PricingPage() {
   const grouped = React.useMemo(() => groupModels(models), [models]);
 
   return (
-    <main className="min-h-screen soft-grid">
+    <main className="min-h-screen bg-background">
       <SiteNav siteName={siteInfo.site_name} />
       <section className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-[1fr_360px] lg:items-end">
           <div>
-            <Badge className="mb-5 border-primary/30 bg-primary/10 text-primary">公开价格</Badge>
-            <h1 className="max-w-3xl text-4xl font-semibold leading-tight text-foreground sm:text-6xl">{siteInfo.site_name} - AI API 价格表</h1>
+            <Badge variant="clay" className="mb-5">公开价格</Badge>
+            <h1 className="max-w-3xl font-serif text-4xl font-semibold leading-tight text-foreground sm:text-6xl">{siteInfo.site_name} - AI API 价格表</h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground">
               统一接入 OpenAI / Anthropic 兼容模型，按实际用量透明计费。你只需要平台 API Key 和模型名，就能在现有 SDK 中切换到灵枢网关。
             </p>
@@ -61,20 +61,20 @@ export function PricingPage() {
               </Button>
             </div>
           </div>
-          <Card className="glass">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Sparkles className="h-5 w-5 text-primary" /> 接入概览
               </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 text-sm text-muted-foreground">
-              <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.04] p-3">
+              <div className="flex items-center justify-between rounded-lg border border-border bg-[var(--bg-subtle)] p-3">
                 <span>可用模型</span>
-                <strong className="text-foreground">{models.length}</strong>
+                <strong className="font-serif text-foreground">{models.length}</strong>
               </div>
-              <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.04] p-3">
+              <div className="flex items-center justify-between rounded-lg border border-border bg-[var(--bg-subtle)] p-3">
                 <span>计费货币</span>
-                <strong className="text-foreground">USD</strong>
+                <strong className="font-serif text-foreground">USD</strong>
               </div>
               {siteInfo.contact_info ? <p className="leading-6">联系方式：{siteInfo.contact_info}</p> : null}
             </CardContent>
@@ -93,7 +93,7 @@ export function PricingPage() {
               <section key={group} className="grid gap-4">
                 <div className="flex items-center gap-3">
                   <Boxes className="h-5 w-5 text-primary" />
-                  <h2 className="text-xl font-semibold">{group}</h2>
+                  <h2 className="font-serif text-xl font-semibold">{group}</h2>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {items.map((model) => (
@@ -111,7 +111,7 @@ export function PricingPage() {
 
 function ModelPriceCard({ model }: { model: PublicModel }) {
   return (
-    <Card className="group glass transition hover:-translate-y-1 hover:border-primary/40">
+    <Card className="group transition-colors hover:border-[var(--border-strong)]">
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -120,7 +120,7 @@ function ModelPriceCard({ model }: { model: PublicModel }) {
               <Cpu className="h-4 w-4" /> {model.type}
             </p>
           </div>
-          <Badge className="bg-white/10 text-foreground">{billingModeText(model.billing_mode)}</Badge>
+          <Badge>{billingModeText(model.billing_mode)}</Badge>
         </div>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -141,9 +141,9 @@ function ModelPriceCard({ model }: { model: PublicModel }) {
 
 function PriceCell({ label, value, currency }: { label: string; value: string; currency: string }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.035] p-3">
+    <div className="rounded-lg border border-border bg-[var(--bg-subtle)] p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-2 flex items-baseline gap-1 text-lg font-semibold text-foreground">
+      <p className="mt-2 flex items-baseline gap-1 font-serif text-lg font-semibold text-foreground">
         <BadgeDollarSign className="h-4 w-4 text-primary" />
         {Number(value || 0).toFixed(6)}
         <span className="text-xs font-normal text-muted-foreground">{currency}</span>

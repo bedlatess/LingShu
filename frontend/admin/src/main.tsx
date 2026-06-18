@@ -23,6 +23,11 @@ import { AdminMenu, Theme } from "./admin-shell";
 import { errText, formatDateMinute, normalizeModelPayload, providerOptions, type Pager, runWrite } from "./pages/admin-page-utils";
 import { ModelForm } from "./pages/model-form";
 import "antd/dist/reset.css";
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/500.css";
+import "@fontsource/inter/600.css";
+import "@fontsource/jetbrains-mono/400.css";
+import "./styles.css";
 
 const { Header, Sider, Content } = Layout;
 message.config({ maxCount: 1 });
@@ -440,7 +445,7 @@ function App() {
   if (authStatus === "checking" && token) {
     return (
       <Theme>
-        <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#f6f8fb" }}>
+        <div className="admin-auth-page">
           <Space direction="vertical" align="center">
             <Spin />
             <Typography.Text type="secondary">正在校验登录状态...</Typography.Text>
@@ -464,8 +469,8 @@ function App() {
   if (!token || authStatus === "anonymous" || !me) {
     return (
       <Theme>
-        <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#f6f8fb" }}>
-          <Card title="LingShu 管理端登录" style={{ width: 380 }}>
+        <div className="admin-auth-page">
+          <Card className="admin-auth-card" title={<span className="admin-serif">LingShu 管理端登录</span>}>
             {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} />}
             <Form layout="vertical" onFinish={handleLogin}>
               <Form.Item name="login" label="用户名或邮箱" rules={[{ required: true }]}>
@@ -487,12 +492,15 @@ function App() {
   return (
     <Theme>
       <Layout style={{ minHeight: "100vh" }}>
-        <Sider width={220}>
-          <div style={{ color: "white", fontWeight: 700, padding: 20 }}>LingShu Admin</div>
+        <Sider className="admin-sider" width={220}>
+          <div className="admin-logo">
+            LingShu
+            <div className="admin-logo-subtitle">Admin Console</div>
+          </div>
           <AdminMenu />
         </Sider>
         <Layout>
-          <Header style={{ background: "#fff", borderBottom: "1px solid #f0f0f0" }}>
+          <Header className="admin-header">
             <Space style={{ width: "100%", justifyContent: "space-between" }}>
               <Typography.Text strong>管理工作台</Typography.Text>
               <Button
@@ -508,7 +516,7 @@ function App() {
               </Button>
             </Space>
           </Header>
-          <Content style={{ padding: 24 }}>
+          <Content className="admin-content">
             <Space direction="vertical" size={16} style={{ width: "100%" }}>
               {error && <Alert type="error" message={error} closable onClose={() => setError("")} />}
               <Suspense fallback={<Spin />}>

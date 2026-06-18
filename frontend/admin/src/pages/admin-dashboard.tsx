@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card, Col, Row, Space, Table, Typography, message } from "antd";
 import type { AdminDashboard, ReportRow, User, createAPI } from "@lingshu/shared";
+import { designTokens } from "@lingshu/shared";
 
 import { errText, fmtMoney, MiniBars } from "./admin-page-utils";
 
@@ -10,7 +11,7 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <Card>
       <Typography.Text type="secondary">{label}</Typography.Text>
-      <Typography.Title level={4} style={{ margin: "8px 0 0" }}>{value}</Typography.Title>
+      <Typography.Title level={4} style={{ margin: "8px 0 0", fontFamily: designTokens.font.serif }}>{value}</Typography.Title>
     </Card>
   );
 }
@@ -39,7 +40,7 @@ export function AdminDashboardPage({ dashboard, auditCount, me, api }: { dashboa
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
-      <Typography.Title level={3} style={{ margin: 0 }}>运营概览</Typography.Title>
+      <Typography.Title level={3} style={{ margin: 0, fontFamily: designTokens.font.serif }}>运营概览</Typography.Title>
       <Typography.Text type="secondary">当前管理员：{me.username}</Typography.Text>
 
       <Card title="今日">

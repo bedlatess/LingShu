@@ -129,11 +129,11 @@ export function ApiKeysPage() {
     <div className="page-grid">
       <PageHeader eyebrow="API 密钥" title="自助创建和管理平台密钥" description="密钥明文只在创建时展示一次。后续只展示脱敏值，请妥善保存。" />
       {plaintext ? (
-        <Card className="border-primary/35 bg-primary/10">
+        <Card className="border-[var(--clay)] bg-[var(--clay-soft)]">
           <CardContent className="flex flex-col gap-3 p-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-sm font-semibold text-primary">新密钥仅显示一次</p>
-              <code className="mt-2 block break-all rounded-md bg-background/70 p-3 text-sm">{plaintext}</code>
+              <p className="text-sm font-semibold text-[var(--clay-hover)]">新密钥仅显示一次</p>
+              <code className="mt-2 block break-all rounded-md border border-border bg-card p-3 text-sm">{plaintext}</code>
             </div>
             <Button onClick={copyKey} variant="secondary">
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -143,7 +143,7 @@ export function ApiKeysPage() {
         </Card>
       ) : null}
 
-      <Card className="glass">
+      <Card>
         <CardHeader><CardTitle>创建 API 密钥</CardTitle></CardHeader>
         <CardContent>
           <form className="flex flex-col gap-3 sm:flex-row" onSubmit={createKey}>
@@ -153,14 +153,14 @@ export function ApiKeysPage() {
         </CardContent>
       </Card>
 
-      <Card className="glass">
+      <Card>
         <CardHeader><CardTitle>密钥列表</CardTitle></CardHeader>
         <CardContent className="grid gap-3">
           {items.length === 0 ? (
             <EmptyState title="还没有 API 密钥" description="创建一个密钥后，即可在 SDK 中配置平台接入地址。" />
           ) : (
             items.map((item) => (
-              <div key={item.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.035] p-4 md:flex-row md:items-center md:justify-between">
+              <div key={item.id} className="flex flex-col gap-3 rounded-lg border border-border bg-[var(--bg-subtle)] p-4 md:flex-row md:items-center md:justify-between">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <KeyRound className="h-4 w-4 text-primary" />

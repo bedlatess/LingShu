@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Card, Col, Input, Row, Space, Table, Tabs, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { createAPI, type AdminDashboard, type GatewayLog, type LedgerRecord, type ReportRow } from "@lingshu/shared";
+import { designTokens } from "@lingshu/shared";
 
 import { errText, exportCSV, fmtMoney, MiniBars, type Pager, tablePagination } from "./admin-page-utils";
 
@@ -90,9 +91,9 @@ export function ReportsPage({ api, dashboard, logs, ledger, logColumns, ledgerCo
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
       <Row gutter={[16, 16]}>
-        <Col xs={24} md={8}><Card><Typography.Text type="secondary">活跃用户</Typography.Text><Typography.Title level={4}>{dashboard?.active_users ?? 0}</Typography.Title></Card></Col>
-        <Col xs={24} md={8}><Card><Typography.Text type="secondary">余额池</Typography.Text><Typography.Title level={4}>{fmtMoney(dashboard?.balance_total)}</Typography.Title></Card></Col>
-        <Col xs={24} md={8}><Card><Typography.Text type="secondary">今日成本</Typography.Text><Typography.Title level={4}>{fmtMoney(dashboard?.today_base_cost)}</Typography.Title></Card></Col>
+        <Col xs={24} md={8}><Card><Typography.Text type="secondary">活跃用户</Typography.Text><Typography.Title level={4} style={{ fontFamily: designTokens.font.serif }}>{dashboard?.active_users ?? 0}</Typography.Title></Card></Col>
+        <Col xs={24} md={8}><Card><Typography.Text type="secondary">余额池</Typography.Text><Typography.Title level={4} style={{ fontFamily: designTokens.font.serif }}>{fmtMoney(dashboard?.balance_total)}</Typography.Title></Card></Col>
+        <Col xs={24} md={8}><Card><Typography.Text type="secondary">今日成本</Typography.Text><Typography.Title level={4} style={{ fontFamily: designTokens.font.serif }}>{fmtMoney(dashboard?.today_base_cost)}</Typography.Title></Card></Col>
       </Row>
       <Card>
         <Space wrap>

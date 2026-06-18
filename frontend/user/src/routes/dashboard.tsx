@@ -13,6 +13,15 @@ import { formatCompact, formatMoney } from "@/lib/utils";
 import type { UserDashboard, UserDailyStat, UserGatewayLog } from "@lingshu/shared/user-types";
 import { zhStatus } from "@/lib/i18n";
 
+const CHART_COLORS = {
+  clay: "#C6613F",
+  clayFill: "#C6613F2A",
+  grid: "#D8D4CA",
+  axis: "#87867F",
+  tooltipBg: "#FAF9F5",
+  tooltipBorder: "#D8D4CA"
+};
+
 export function DashboardPage() {
   const { api } = useAuth();
   const [dashboard, setDashboard] = React.useState<UserDashboard | null>(null);
@@ -60,7 +69,7 @@ export function DashboardPage() {
       )}
 
       <div className="grid gap-5 xl:grid-cols-[1.4fr_0.8fr]">
-        <Card className="glass">
+        <Card>
           <CardHeader>
             <CardTitle>消费趋势</CardTitle>
           </CardHeader>
@@ -73,15 +82,15 @@ export function DashboardPage() {
                   <AreaChart data={daily} width={width} height={height}>
                     <defs>
                       <linearGradient id="charge" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#2dd4bf" stopOpacity={0.38} />
-                        <stop offset="95%" stopColor="#2dd4bf" stopOpacity={0} />
+                        <stop offset="5%" stopColor={CHART_COLORS.clay} stopOpacity={0.24} />
+                        <stop offset="95%" stopColor={CHART_COLORS.clay} stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid stroke="rgba(255,255,255,.08)" vertical={false} />
-                    <XAxis dataKey="day" stroke="rgba(255,255,255,.45)" tickLine={false} axisLine={false} />
-                    <YAxis stroke="rgba(255,255,255,.45)" tickLine={false} axisLine={false} />
-                    <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,.12)", borderRadius: 8 }} />
-                    <Area type="monotone" dataKey="charge" stroke="#2dd4bf" fill="url(#charge)" strokeWidth={2} />
+                    <CartesianGrid stroke={CHART_COLORS.grid} vertical={false} />
+                    <XAxis dataKey="day" stroke={CHART_COLORS.axis} tickLine={false} axisLine={false} />
+                    <YAxis stroke={CHART_COLORS.axis} tickLine={false} axisLine={false} />
+                    <Tooltip contentStyle={{ background: CHART_COLORS.tooltipBg, border: `1px solid ${CHART_COLORS.tooltipBorder}`, borderRadius: 6, color: "#141413" }} />
+                    <Area type="monotone" dataKey="charge" stroke={CHART_COLORS.clay} fill="url(#charge)" strokeWidth={2} />
                   </AreaChart>
                 )}
               </MeasuredChart>
@@ -89,7 +98,7 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="glass">
+        <Card>
           <CardHeader>
             <CardTitle>最近调用</CardTitle>
           </CardHeader>
@@ -98,12 +107,12 @@ export function DashboardPage() {
               <EmptyState title="暂无调用" description="创建平台密钥并发起调用后会出现记录。" />
             ) : (
               logs.slice(0, 6).map((log) => (
-                <div key={log.request_id} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.035] p-3">
+                <div key={log.request_id} className="flex items-center justify-between rounded-lg border border-border bg-[var(--bg-subtle)] p-3">
                   <div>
                     <p className="text-sm font-medium">{zhStatus(log.status)}</p>
                     <p className="text-xs text-muted-foreground">{formatCompact(log.total_tokens)} 个 token</p>
                   </div>
-                  <strong className="text-sm">{formatMoney(log.charge)}</strong>
+                  <strong className="font-serif text-sm">{formatMoney(log.charge)}</strong>
                 </div>
               ))
             )}

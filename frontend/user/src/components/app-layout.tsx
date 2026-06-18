@@ -1,4 +1,4 @@
-import { Activity, Bell, Gauge, KeyRound, LogOut, PanelTop, Settings, Sparkles, Ticket, WalletCards } from "lucide-react";
+import { Activity, Bell, Gauge, KeyRound, LogOut, PanelTop, Settings, Ticket, WalletCards } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -19,20 +19,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
 
   return (
-    <div className="min-h-screen soft-grid">
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-background/70 backdrop-blur-2xl">
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-30 border-b border-border bg-surface">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-sm font-black text-primary-foreground shadow-glow">LS</div>
+            <div className="grid h-9 w-9 place-items-center rounded-md border border-border bg-foreground text-sm font-black text-background">LS</div>
             <div>
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                灵枢控制台 <Sparkles className="h-3.5 w-3.5 text-primary" />
-              </div>
+              <div className="flex items-center gap-2 font-serif text-sm font-semibold text-foreground">灵枢控制台</div>
               <p className="text-xs text-muted-foreground">私有 AI 接入服务</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="hidden items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-muted-foreground sm:flex">
+            <div className="hidden items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground sm:flex">
               <WalletCards className="h-4 w-4 text-primary" />
               {user?.username ?? "加载中"}
             </div>
@@ -44,14 +42,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       <div className="mx-auto grid max-w-7xl gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[220px_1fr]">
-        <aside className="glass hidden rounded-lg p-2 lg:block">
+        <aside className="hidden rounded-lg border border-border bg-surface p-2 lg:block">
           <nav className="grid gap-1">
             {navItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 className={({ isActive }: { isActive: boolean }) =>
-                  cn("flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-muted-foreground transition-all hover:bg-white/[0.06] hover:text-foreground", isActive && "bg-primary/12 text-primary")
+                  cn("flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-[var(--bg-subtle)] hover:text-foreground", isActive && "bg-[var(--clay-soft)] text-[var(--clay-hover)]")
                 }
               >
                 <item.icon className="h-4 w-4" />
@@ -67,7 +65,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               key={item.to}
               to={item.to}
               className={({ isActive }: { isActive: boolean }) =>
-                cn("flex shrink-0 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-muted-foreground", isActive && "border-primary/40 text-primary")
+                cn("flex shrink-0 items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground", isActive && "border-[var(--clay-soft)] bg-[var(--clay-soft)] text-[var(--clay-hover)]")
               }
             >
               <item.icon className="h-4 w-4" />

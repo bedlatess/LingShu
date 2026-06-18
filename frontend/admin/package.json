@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
     "@lingshu/shared": "file:../packages/shared",
     "@vitejs/plugin-react": "^5.1.1",
     "antd": "^6.1.1",

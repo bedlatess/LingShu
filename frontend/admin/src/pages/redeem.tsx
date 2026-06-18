@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Alert, Button, Card, Drawer, Form, Input, Modal, Space, Table, Tag, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Link } from "react-router-dom";
-import { createAPI, type RedeemCode, type RedeemRecord } from "@lingshu/shared";
+import { createAPI, designTokens, type RedeemCode, type RedeemRecord } from "@lingshu/shared";
 
 import { copyText, fmtMoney, type Pager, runWrite, tablePagination } from "./admin-page-utils";
 
@@ -46,7 +46,7 @@ export function RedeemPage({ redeemCodes, api, refresh, createdCodes, setCreated
     },
     { title: "批次", dataIndex: "batch_name" },
     { title: "面额", dataIndex: "amount", render: (value) => fmtMoney(value) },
-    { title: "状态", dataIndex: "status", render: (value) => <Tag color={value === "unused" ? "green" : value === "disabled" ? "red" : "default"}>{value}</Tag> },
+    { title: "状态", dataIndex: "status", render: (value) => <Tag color={value === "unused" ? designTokens.colors.success : value === "disabled" ? designTokens.colors.danger : "default"}>{value}</Tag> },
     { title: "使用", render: (_, item) => `${item.used_count}/${item.max_uses}` },
     { title: "有效期", dataIndex: "expires_at", render: (value) => value ? new Date(value).toLocaleString("zh-CN") : "永久" },
     {

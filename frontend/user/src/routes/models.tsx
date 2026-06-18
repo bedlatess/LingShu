@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { useAuth } from "@/providers/auth";
+import { formatMoney } from "@/lib/utils";
 import { zhBillingMode, zhStatus, zhType } from "@/lib/i18n";
 
 export function ModelsPage() {
@@ -59,16 +60,24 @@ export function ModelsPage() {
               </div>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {items.map((model) => (
-                  <Card key={model.id} className="glass overflow-hidden transition-all hover:-translate-y-1 hover:border-primary/35">
+                  <Card key={model.id} className="overflow-hidden transition-colors hover:border-[var(--border-strong)]">
                     <CardContent className="p-5">
                       <div className="mb-5 flex items-start justify-between gap-3">
-                        <div className="grid h-11 w-11 place-items-center rounded-lg bg-primary/10 text-primary">{iconFor(model.type)}</div>
+                        <div className="grid h-11 w-11 place-items-center rounded-lg border border-border bg-[var(--bg-subtle)] text-primary">{iconFor(model.type)}</div>
                         <Badge>{zhBillingMode(model.billing_mode)}</Badge>
                       </div>
-                      <h3 className="text-lg font-semibold">{model.public_name}</h3>
+                      <h3 className="font-serif text-lg font-semibold">{model.public_name}</h3>
                       <p className="mt-1 text-sm text-muted-foreground">{zhType(model.type)}</p>
-                      <div className="mt-5 grid gap-2 rounded-lg border border-white/10 bg-white/[0.035] p-4 text-sm">
+                      <div className="mt-5 grid gap-2 rounded-lg border border-border bg-[var(--bg-subtle)] p-4 text-sm">
                         <Meta label="计费方式" value={zhBillingMode(model.billing_mode)} />
+                        {model.billing_mode === "per_call" ? (
+                          <Meta label="单次价格" value={formatUnitPrice(model.call_unit_price)} />
+                        ) : (
+                          <>
+                            <Meta label="输入 / 1M" value={formatUnitPrice(model.input_unit_price)} />
+                            <Meta label="输出 / 1M" value={formatUnitPrice(model.output_unit_price)} />
+                          </>
+                        )}
                         <Meta label="状态" value={zhStatus(model.status)} />
                       </div>
                     </CardContent>
@@ -94,7 +103,11 @@ function Meta({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between">
       <span className="text-muted-foreground">{label}</span>
-      <strong>{value}</strong>
+      <strong className="font-serif">{value}</strong>
     </div>
   );
+}
+
+function formatUnitPrice(value?: string) {
+  return Number(value ?? 0) > 0 ? formatMoney(value) : "-";
 }

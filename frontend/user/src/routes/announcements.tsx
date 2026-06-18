@@ -26,14 +26,14 @@ export function AnnouncementsPage() {
       ) : (
         <div className="grid gap-4">
           {items.map((item) => (
-            <Card key={item.id} className="glass transition-all hover:border-primary/35">
+            <Card key={item.id} className="transition-colors hover:border-[var(--border-strong)]">
               <CardContent className="p-5">
                 <div className="mb-3 flex items-center gap-2">
                   <Bell className="h-4 w-4 text-primary" />
-                  <h3 className="font-semibold">{item.title}</h3>
-                  {item.pinned ? <Badge><Pin className="mr-1 h-3 w-3" />置顶</Badge> : null}
+                  <h3 className="font-serif font-semibold">{item.title}</h3>
+                  {item.pinned ? <Badge variant="clay"><Pin className="mr-1 h-3 w-3" />置顶</Badge> : null}
                 </div>
-                <div className="prose prose-invert max-w-none text-sm leading-7 text-muted-foreground">
+                <div className="prose max-w-none text-sm leading-7 text-muted-foreground">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.content}</ReactMarkdown>
                 </div>
               </CardContent>

@@ -1,5 +1,6 @@
 import React from "react";
 import { Card, message, Space, Typography } from "antd";
+import { designTokens } from "@lingshu/shared";
 
 export type Pager = { page: number; limit: number; total: number };
 
@@ -107,8 +108,8 @@ export function MiniBars({ data }: { data: { label: string; value: number }[] })
     <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 140 }}>
       {data.map((d) => (
         <div key={d.label} style={{ flex: 1, minWidth: 28, textAlign: "center" }}>
-          <div style={{ height: `${(d.value / max) * 110}px`, background: "#4f46e5", borderRadius: 4 }} title={`${d.value}`} />
-          <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{d.label.length > 5 ? d.label.slice(5) : d.label}</div>
+          <div style={{ height: `${(d.value / max) * 110}px`, background: designTokens.colors.clay, borderRadius: 4 }} title={`${d.value}`} />
+          <div style={{ fontSize: 12, color: designTokens.colors.inkFaint, marginTop: 4 }}>{d.label.length > 5 ? d.label.slice(5) : d.label}</div>
         </div>
       ))}
     </div>
@@ -121,7 +122,7 @@ export function metricCards(items: { label: string; value: React.ReactNode }[]) 
       {items.map((item) => (
         <Card key={item.label}>
           <Typography.Text type="secondary">{item.label}</Typography.Text>
-          <Typography.Title level={5}>{item.value}</Typography.Title>
+          <Typography.Title level={5} style={{ fontFamily: designTokens.font.serif }}>{item.value}</Typography.Title>
         </Card>
       ))}
     </Space>

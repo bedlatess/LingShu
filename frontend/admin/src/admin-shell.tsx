@@ -21,14 +21,50 @@ export function AdminMenu() {
   const navigate = useNavigate();
   const location = useLocation();
   const selectedKey = location.pathname.startsWith("/users/") ? "/users" : location.pathname === "/" ? "/dashboard" : location.pathname;
-  return <Menu theme="dark" mode="inline" selectedKeys={[selectedKey]} items={adminMenuItems} onClick={({ key }) => navigate(key)} />;
+  return <Menu className="admin-menu" theme="light" mode="inline" selectedKeys={[selectedKey]} items={adminMenuItems} onClick={({ key }) => navigate(key)} />;
 }
 
 export function Theme({ children }: { children: React.ReactNode }) {
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: designTokens.colors.brand, borderRadius: 8 } }}>
+    <ConfigProvider
+      theme={{
+        cssVar: { key: "lingshu-admin" },
+        token: {
+          colorPrimary: designTokens.colors.clay,
+          colorInfo: designTokens.colors.clay,
+          colorSuccess: designTokens.colors.success,
+          colorWarning: designTokens.colors.warning,
+          colorError: designTokens.colors.danger,
+          colorBgLayout: designTokens.colors.bg,
+          colorBgContainer: designTokens.colors.surface,
+          colorBgElevated: designTokens.colors.surface,
+          colorBorder: designTokens.colors.border,
+          colorBorderSecondary: designTokens.colors.border,
+          colorText: designTokens.colors.ink,
+          colorTextSecondary: designTokens.colors.inkMuted,
+          borderRadius: 6,
+          fontFamily: designTokens.font.sans,
+          boxShadow: designTokens.shadow.md,
+          boxShadowSecondary: designTokens.shadow.sm
+        },
+        components: {
+          Layout: {
+            headerBg: designTokens.colors.surface,
+            siderBg: designTokens.colors.bgSubtle,
+            bodyBg: designTokens.colors.bg
+          },
+          Menu: {
+            itemBg: "transparent",
+            itemSelectedBg: designTokens.colors.claySoft,
+            itemSelectedColor: designTokens.colors.clayHover,
+            itemColor: designTokens.colors.inkMuted
+          },
+          Table: { headerBg: designTokens.colors.bgSubtle, headerColor: designTokens.colors.ink },
+          Card: { colorBorderSecondary: designTokens.colors.border }
+        }
+      }}
+    >
       {children}
     </ConfigProvider>
   );
 }
-

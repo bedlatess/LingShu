@@ -4,6 +4,7 @@ import type { ColumnsType } from "antd/es/table";
 import { Link, useParams } from "react-router-dom";
 import {
   createAPI,
+  designTokens,
   perMToK,
   type Channel,
   type ChannelDetail,
@@ -327,7 +328,14 @@ export function ChannelDetailPage({ api }: { api: AdminAPI }) {
     {
       title: "状态",
       dataIndex: "state",
-      render: (state) => state === "bound" ? <Tag color="green">已绑定</Tag> : state === "exists" ? <Tag color="blue">已存在仅绑定</Tag> : <Tag>新建</Tag>
+      render: (state) =>
+        state === "bound" ? (
+          <Tag color={designTokens.colors.success}>已绑定</Tag>
+        ) : state === "exists" ? (
+          <Tag color={designTokens.colors.clay}>已存在仅绑定</Tag>
+        ) : (
+          <Tag>新建</Tag>
+        )
     }
   ];
   const successRate = detail.stats.requests > 0 ? `${((detail.stats.successes / detail.stats.requests) * 100).toFixed(2)}%` : "0%";
@@ -353,7 +361,7 @@ export function ChannelDetailPage({ api }: { api: AdminAPI }) {
       </Card>
       <Card title="最近测试">
         <Space wrap>
-          <Tag color={detail.channel.health === "healthy" ? "green" : "red"}>{detail.channel.health}</Tag>
+          <Tag color={detail.channel.health === "healthy" ? designTokens.colors.success : designTokens.colors.danger}>{detail.channel.health}</Tag>
           <Typography.Text>最近成功：{formatDateMinute(detail.channel.last_success_at, "暂无")}</Typography.Text>
           <Typography.Text>最近延迟：{detail.channel.last_latency_ms ?? 0} ms</Typography.Text>
         </Space>
