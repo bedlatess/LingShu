@@ -100,13 +100,14 @@ func (h Handler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name string `json:"name"`
+		Name             string   `json:"name"`
+		AllowedEndpoints []string `json:"allowed_endpoints"`
 	}
 	if err := httpx.Decode(r, &req); err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid json")
 		return
 	}
-	item, err := h.keys.CreateForUser(r.Context(), current.ID, req.Name)
+	item, err := h.keys.CreateForUser(r.Context(), current.ID, req.Name, req.AllowedEndpoints)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, err.Error())
 		return
@@ -121,14 +122,19 @@ func (h Handler) UpdateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name   string `json:"name"`
-		Status string `json:"status"`
+		Name             string    `json:"name"`
+		Status           string    `json:"status"`
+		AllowedEndpoints *[]string `json:"allowed_endpoints"`
 	}
 	if err := httpx.Decode(r, &req); err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid json")
 		return
 	}
-	item, err := h.keys.UpdateForUser(r.Context(), current.ID, chi.URLParam(r, "id"), req.Name, req.Status)
+	allowedEndpoints := []string{}
+	if req.AllowedEndpoints != nil {
+		allowedEndpoints = *req.AllowedEndpoints
+	}
+	item, err := h.keys.UpdateForUser(r.Context(), current.ID, chi.URLParam(r, "id"), req.Name, req.Status, allowedEndpoints, req.AllowedEndpoints != nil)
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, err.Error())
 		return

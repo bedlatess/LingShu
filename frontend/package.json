@@ -4,13 +4,11 @@
   "private": true,
   "workspaces": [
     "packages/shared",
-    "user",
-    "admin"
+    "packages/ui",
+    "app"
   ],
   "scripts": {
-    "dev:user": "npm --workspace @lingshu/user run dev",
-    "dev:admin": "npm --workspace @lingshu/admin run dev",
-    "build": "npm --workspace @lingshu/user run build && npm --workspace @lingshu/admin run build"
+    "dev:app": "npm --workspace @lingshu/app run dev",
+    "build": "npm --workspace @lingshu/app run build"
   }
 }
-

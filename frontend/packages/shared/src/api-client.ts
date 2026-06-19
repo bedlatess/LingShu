@@ -1,5 +1,5 @@
 ﻿import type { APIKey, AdminDashboard, Announcement, AuditLog, Channel, ChannelDetectResult, ChannelDetail, ChannelPreset, CreatedAPIKey, DailyStat, GatewayLog, HealthResponse, LedgerRecord, LoginResponse, ModelConfig, ModelDetail, ModelStat, RedeemCode, RedeemRecord, ReportRow, SystemSetting, User } from "./admin-types";
-import type { ChannelModelImportInput, ChannelModelImportResult, ChannelModelSyncResult, CleanupHistoryEntry, CleanupResult, PaginatedResponse, PublicModel, PublicSiteInfo } from "./types";
+import type { ChannelModelImportInput, ChannelModelImportResult, ChannelModelSyncResult, CleanupHistoryEntry, CleanupResult, OpsDashboard, PaginatedResponse, PublicModel, PublicSiteInfo } from "./types";
 import type { UserDashboard, UserGatewayLog, UserLedgerRecord, UserModelConfig } from "./user-types";
 
 const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
@@ -83,10 +83,30 @@ export function createAPI(token?: string) {
   }
 
   return {
-    login: (login: string, password: string) =>
+    login: (login: string, password: string, captcha_token?: string) =>
       request<LoginResponse>("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ login, password })
+        body: JSON.stringify({ login, password, captcha_token })
+      }),
+    sendEmailCode: (payload: { purpose: "register" | "reset"; email: string; captcha_token?: string }) =>
+      request<{ status: string }>("/api/auth/email/send-code", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      }),
+    register: (payload: { username: string; email: string; password: string; code: string; captcha_token?: string }) =>
+      request<User>("/api/auth/register", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      }),
+    forgotPassword: (email: string, captcha_token?: string) =>
+      request<{ status: string }>("/api/auth/forgot", {
+        method: "POST",
+        body: JSON.stringify({ email, captcha_token })
+      }),
+    resetPassword: (payload: { email: string; code: string; new_password: string }) =>
+      request<{ status: string }>("/api/auth/reset", {
+        method: "POST",
+        body: JSON.stringify(payload)
       }),
     changePassword: (payload: { old_password: string; new_password: string }) =>
       request<{ status: string }>("/api/auth/change-password", {
@@ -95,6 +115,7 @@ export function createAPI(token?: string) {
       }),
     publicModels: () => request<{ items: PublicModel[] }>("/api/public/models"),
     siteInfo: () => request<PublicSiteInfo>("/api/public/site-info"),
+    legal: (slug: "tos" | "privacy") => request<{ slug: string; markdown: string }>(`/api/public/legal/${slug}`),
     me: () => request<User>("/api/auth/me"),
     listUsers: (page?: number, limit?: number) => request<PaginatedResponse<User>>(withQuery("/api/admin/users", { page, limit })),
     getUser: (id: string) => request<User>(`/api/admin/users/${id}`),
@@ -119,7 +140,7 @@ export function createAPI(token?: string) {
       }),
     auditCount: () => request<{ count: number }>("/api/admin/audit-count"),
     listAPIKeys: (page?: number, limit?: number) => request<PaginatedResponse<APIKey>>(withQuery("/api/admin/api-keys", { page, limit })),
-    createAPIKey: (payload: { user_id: string; name: string }) =>
+    createAPIKey: (payload: { user_id: string; name: string; allowed_endpoints?: string[] }) =>
       request<APIKey & { plaintext: string }>("/api/admin/api-keys", {
         method: "POST",
         body: JSON.stringify(payload)
@@ -283,12 +304,12 @@ export function createAPI(token?: string) {
     adminUserAPIKeys: (id: string, page?: number, limit?: number) =>
       request<PaginatedResponse<APIKey>>(withQuery(`/api/admin/users/${id}/api-keys`, { page, limit })),
     adminUserSummary: (id: string) => request<{ total_charge: string; total_recharge: string }>(`/api/admin/users/${id}/summary`),
-    createUserAPIKey: (payload: { name: string }) =>
+    createUserAPIKey: (payload: { name: string; allowed_endpoints?: string[] }) =>
       request<CreatedAPIKey>("/api/user/api-keys", {
         method: "POST",
         body: JSON.stringify(payload)
       }),
-    updateUserAPIKey: (id: string, payload: { name?: string; status?: string }) =>
+    updateUserAPIKey: (id: string, payload: { name?: string; status?: string; allowed_endpoints?: string[] }) =>
       request<APIKey>(`/api/user/api-keys/${id}`, {
         method: "PATCH",
         body: JSON.stringify(payload)
@@ -303,6 +324,7 @@ export function createAPI(token?: string) {
         body: JSON.stringify({ code })
       }),
     adminDashboard: () => request<AdminDashboard>("/api/admin/dashboard"),
+    adminOps: () => request<OpsDashboard>("/api/admin/ops"),
     adminReportDaily: (from?: string, to?: string) => request<{ items: ReportRow[] }>(withQuery("/api/admin/reports/daily", { from, to })),
     adminReportByUser: (from?: string, to?: string) => request<{ items: ReportRow[] }>(withQuery("/api/admin/reports/by-user", { from, to })),
     adminReportByModel: (from?: string, to?: string) => request<{ items: ReportRow[] }>(withQuery("/api/admin/reports/by-model", { from, to })),

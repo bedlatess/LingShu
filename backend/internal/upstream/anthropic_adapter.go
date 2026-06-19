@@ -56,8 +56,10 @@ type anthropicResponse struct {
 	} `json:"content"`
 	StopReason string `json:"stop_reason"`
 	Usage      struct {
-		InputTokens  int `json:"input_tokens"`
-		OutputTokens int `json:"output_tokens"`
+		InputTokens              int `json:"input_tokens"`
+		OutputTokens             int `json:"output_tokens"`
+		CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+		CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 	} `json:"usage"`
 }
 
@@ -261,9 +263,11 @@ func AnthropicResponseToOpenAI(raw []byte) ([]byte, Usage) {
 		}
 	}
 	usage := Usage{
-		PromptTokens:     input.Usage.InputTokens,
-		CompletionTokens: input.Usage.OutputTokens,
-		TotalTokens:      input.Usage.InputTokens + input.Usage.OutputTokens,
+		PromptTokens:        input.Usage.InputTokens,
+		CompletionTokens:    input.Usage.OutputTokens,
+		TotalTokens:         input.Usage.InputTokens + input.Usage.OutputTokens,
+		CacheCreationTokens: input.Usage.CacheCreationInputTokens,
+		CacheReadTokens:     input.Usage.CacheReadInputTokens,
 	}
 	out := map[string]any{
 		"id":      firstNonEmpty(input.ID, "chatcmpl-anthropic"),
@@ -436,14 +440,18 @@ func (s *anthropicStreamState) consume(data string) (string, bool) {
 			OutputTokens int    `json:"output_tokens"`
 		} `json:"delta"`
 		Usage struct {
-			InputTokens  int `json:"input_tokens"`
-			OutputTokens int `json:"output_tokens"`
+			InputTokens              int `json:"input_tokens"`
+			OutputTokens             int `json:"output_tokens"`
+			CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+			CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 		} `json:"usage"`
 		Message struct {
 			Model string `json:"model"`
 			Usage struct {
-				InputTokens  int `json:"input_tokens"`
-				OutputTokens int `json:"output_tokens"`
+				InputTokens              int `json:"input_tokens"`
+				OutputTokens             int `json:"output_tokens"`
+				CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+				CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 			} `json:"usage"`
 		} `json:"message"`
 	}
@@ -459,8 +467,20 @@ func (s *anthropicStreamState) consume(data string) (string, bool) {
 	if event.Message.Usage.InputTokens > 0 {
 		s.usage.PromptTokens = event.Message.Usage.InputTokens
 	}
+	if event.Message.Usage.CacheCreationInputTokens > 0 {
+		s.usage.CacheCreationTokens = event.Message.Usage.CacheCreationInputTokens
+	}
+	if event.Message.Usage.CacheReadInputTokens > 0 {
+		s.usage.CacheReadTokens = event.Message.Usage.CacheReadInputTokens
+	}
 	if event.Usage.InputTokens > 0 {
 		s.usage.PromptTokens = event.Usage.InputTokens
+	}
+	if event.Usage.CacheCreationInputTokens > 0 {
+		s.usage.CacheCreationTokens = event.Usage.CacheCreationInputTokens
+	}
+	if event.Usage.CacheReadInputTokens > 0 {
+		s.usage.CacheReadTokens = event.Usage.CacheReadInputTokens
 	}
 	if event.Usage.OutputTokens > 0 {
 		s.usage.CompletionTokens = event.Usage.OutputTokens

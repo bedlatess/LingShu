@@ -102,10 +102,9 @@ go run ./cmd/server
 Start frontend apps:
 
 ```powershell
-npm --prefix frontend/user install
-npm --prefix frontend/admin install
-.\scripts\dev.ps1 user-dev    # http://localhost:5173
-.\scripts\dev.ps1 admin-dev   # http://localhost:5174
+cd frontend
+npm install
+npm run dev:app    # http://localhost:5175
 ```
 
 Build and test:

@@ -77,7 +77,7 @@ func (h Handler) Messages(w http.ResponseWriter, r *http.Request) {
 
 	if resp.StatusCode >= 400 {
 		responseBody, _ := io.ReadAll(resp.Body)
-		h.gateway.FinalizeStream(r.Context(), principalDTO, model, channel, openAIBody, responseBody, estimate, resp.StatusCode, clientIP(r), start)
+		h.gateway.FinalizeStream(r.Context(), principalDTO, model, channel, openAIBody, responseBody, estimate, resp.StatusCode, clientIP(r), start, 0)
 		writeAnthropicErrorBody(w, resp.StatusCode, responseBody)
 		return
 	}
@@ -92,8 +92,13 @@ func (h Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
-	captured, _ := upstream.StreamOpenAIToAnthropic(w, flush, resp.Body, model.PublicName)
-	h.gateway.FinalizeStream(r.Context(), principalDTO, model, channel, openAIBody, captured, estimate, resp.StatusCode, clientIP(r), start)
+	firstTokenMS := 0
+	captured, _ := upstream.StreamOpenAIToAnthropicWithFirstChunk(w, flush, resp.Body, model.PublicName, func() {
+		if firstTokenMS == 0 {
+			firstTokenMS = int(time.Since(start).Milliseconds())
+		}
+	})
+	h.gateway.FinalizeStream(r.Context(), principalDTO, model, channel, openAIBody, captured, estimate, resp.StatusCode, clientIP(r), start, firstTokenMS)
 }
 
 func anthropicErrorTypeForStatus(status int) string {

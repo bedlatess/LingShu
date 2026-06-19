@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"lingshu/backend/internal/billing"
@@ -41,16 +42,68 @@ func (h Handler) ListModels(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h Handler) SiteInfo(w http.ResponseWriter, r *http.Request) {
-	settings, err := h.settings(r.Context(), "site_name", "registration_enabled", "contact_info")
+	settings, err := h.settings(r.Context(),
+		"site_name",
+		"registration_enabled",
+		"registration_mode",
+		"contact_info",
+		"contact_email",
+		"site_logo_url",
+		"site_icp",
+		"site_police_beian",
+		"tos_url",
+		"privacy_url",
+		"brand_primary_color",
+		"captcha_enabled",
+		"captcha_provider",
+	)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	registrationMode := firstSetting(settings, "registration_mode", "")
+	registrationEnabled := registrationMode == "open"
+	if registrationMode == "" {
+		registrationEnabled = firstSetting(settings, "registration_enabled", "false") == "true"
+	}
 	httpx.JSON(w, http.StatusOK, map[string]any{
 		"site_name":            firstSetting(settings, "site_name", "LingShu"),
-		"registration_enabled": firstSetting(settings, "registration_enabled", "false") == "true",
+		"registration_enabled": registrationEnabled,
+		"registration_mode":    firstNonEmpty(registrationMode, mapBool(registrationEnabled, "open", "closed")),
 		"contact_info":         firstSetting(settings, "contact_info", ""),
+		"contact_email":        firstSetting(settings, "contact_email", ""),
+		"site_logo_url":        firstSetting(settings, "site_logo_url", ""),
+		"site_icp":             firstSetting(settings, "site_icp", ""),
+		"site_police_beian":    firstSetting(settings, "site_police_beian", ""),
+		"tos_url":              firstSetting(settings, "tos_url", "/legal/tos"),
+		"privacy_url":          firstSetting(settings, "privacy_url", "/legal/privacy"),
+		"brand_primary_color":  firstSetting(settings, "brand_primary_color", ""),
+		"captcha_enabled":      firstSetting(settings, "captcha_enabled", "false") == "true",
+		"captcha_provider":     firstSetting(settings, "captcha_provider", ""),
 		"login_url":            "/login",
+	})
+}
+
+func (h Handler) Legal(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	key := ""
+	switch slug {
+	case "tos":
+		key = "legal_tos_markdown"
+	case "privacy":
+		key = "legal_privacy_markdown"
+	default:
+		httpx.Error(w, http.StatusNotFound, "legal page not found")
+		return
+	}
+	settings, err := h.settings(r.Context(), key)
+	if err != nil {
+		httpx.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]string{
+		"slug":     slug,
+		"markdown": firstSetting(settings, key, ""),
 	})
 }
 
@@ -130,6 +183,22 @@ func firstSetting(settings map[string]string, key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func mapBool(value bool, yes, no string) string {
+	if value {
+		return yes
+	}
+	return no
 }
 
 func encodePublicModelsForTest(items []PublicModelDTO) ([]byte, error) {

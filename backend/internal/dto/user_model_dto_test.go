@@ -29,10 +29,9 @@ func TestUserModelConfigDTOsDoNotExposeSensitiveBillingFields(t *testing.T) {
 		t.Fatalf("marshal user model dto: %v", err)
 	}
 	text := string(body)
-	for _, forbidden := range []string{"base_cost", "rate_multiplier", "gross_profit"} {
+	for _, forbidden := range []string{"base_cost", "rate_multiplier", "gross_profit", "upstream_model_name"} {
 		if strings.Contains(text, forbidden) {
 			t.Fatalf("user model response leaked %q: %s", forbidden, text)
 		}
 	}
 }
-

@@ -1,0 +1,70 @@
+const auth = {
+  title: "灵枢控制台",
+  description: "一个入口管理 API Key、模型可用性、用量记录和运营配置。普通用户进入用量控制台，管理员进入运营后台。",
+  badge: "私有 AI API 聚合网关",
+  featureUnified: "统一 OpenAI 兼容入口",
+  featureBilling: "余额与扣费清晰可查",
+  featureRoles: "管理员与用户同站分权",
+  loginTitle: "登录",
+  loginDescription: "请输入已开通的账号密码。",
+  username: "用户名或邮箱",
+  password: "密码",
+  usernameOnly: "用户名",
+  email: "邮箱",
+  emailCode: "邮箱验证码",
+  newPassword: "新密码",
+  captchaToken: "人机验证令牌",
+  submit: "进入控制台",
+  submitting: "登录中...",
+  success: "登录成功",
+  failed: "登录失败",
+  forgotLink: "忘记密码？",
+  registerLink: "创建账号",
+  backToLogin: "返回登录",
+  terms: "服务条款",
+  privacy: "隐私政策",
+  and: "和",
+  agreePrefix: "我已阅读并同意",
+  mustAgree: "请先阅读并同意服务条款和隐私政策。",
+  emailRequired: "请先填写邮箱。",
+  sendCode: "发送验证码",
+  codeSent: "验证码已发送，请查收邮箱。",
+  codeSendFailed: "验证码发送失败",
+  loadingPolicy: "正在读取注册策略...",
+  registerTitle: "创建灵枢账号",
+  registerDescription: "使用邮箱验证码完成注册。注册成功后即可创建平台 API Key、查看用量与兑换额度。",
+  registerOpsNote: "如果你的站点采用私有运营，管理员可以在系统设置中临时关闭注册入口。",
+  registrationClosedTitle: "暂未开放注册",
+  registrationClosedDescription: "当前站点由管理员手动开通账号。请联系运营人员获取访问权限。",
+  createAccount: "注册账号",
+  createAccountDescription: "验证码 10 分钟内有效，同一邮箱 60 秒内只能发送一次。",
+  registerSubmit: "完成注册",
+  registerSuccess: "注册成功，请登录。",
+  registerFailed: "注册失败",
+  forgotTitle: "找回密码",
+  forgotDescription: "输入账号邮箱，获取验证码后设置一个新密码。",
+  resetSubmit: "重置密码",
+  resetSuccess: "密码已重置",
+  resetFailed: "密码重置失败",
+  resetDoneTitle: "密码已更新",
+  resetDoneDescription: "返回登录页继续使用",
+  footer: {
+    description: "灵枢提供私有 AI API 聚合与用量管理能力。站点运营者负责账号开通、额度发放与合规配置。"
+  },
+  legal: {
+    eyebrow: "法务信息",
+    loadFailed: "法务页面加载失败",
+    tos: {
+      title: "服务条款",
+      description: "请在使用服务前阅读平台使用规则。",
+      fallback: "# 服务条款\n\n管理员尚未配置服务条款正文。"
+    },
+    privacy: {
+      title: "隐私政策",
+      description: "了解站点如何处理账号、调用与运营相关信息。",
+      fallback: "# 隐私政策\n\n管理员尚未配置隐私政策正文。"
+    }
+  }
+};
+
+export default auth;

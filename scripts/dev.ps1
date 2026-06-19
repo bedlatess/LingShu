@@ -1,6 +1,6 @@
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet("migrate", "seed", "sqlc", "test", "frontend-build", "user-dev", "admin-dev")]
+  [ValidateSet("migrate", "seed", "sqlc", "test", "frontend-build", "app-dev")]
   [string]$Task
 )
 
@@ -29,21 +29,13 @@ switch ($Task) {
     Pop-Location
   }
   "frontend-build" {
-    Push-Location "$Root\frontend\user"
-    npm run build
-    Pop-Location
-    Push-Location "$Root\frontend\admin"
+    Push-Location "$Root\frontend"
     npm run build
     Pop-Location
   }
-  "user-dev" {
-    Push-Location "$Root\frontend\user"
-    npm run dev
-    Pop-Location
-  }
-  "admin-dev" {
-    Push-Location "$Root\frontend\admin"
-    npm run dev
+  "app-dev" {
+    Push-Location "$Root\frontend"
+    npm run dev:app
     Pop-Location
   }
 }

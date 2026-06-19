@@ -51,6 +51,12 @@ var (
 	ErrRateLimited         = errors.New("rate limited")
 )
 
+const (
+	channelFailureCooldown   = 30 * time.Second
+	channelRateLimitCooldown = 2 * time.Minute
+	channelOverloadCooldown  = 5 * time.Minute
+)
+
 type UpstreamError struct {
 	StatusCode int
 	Body       []byte
@@ -114,21 +120,22 @@ func (s GatewayService) Chat(ctx context.Context, principal GatewayPrincipal, ra
 			statusCode = upstreamErr.StatusCode
 		}
 		_ = s.repo.RecordAndCharge(ctx, repository.GatewayRequestRecord{
-			RequestID:      uuid.NewString(),
-			UserID:         principal.UserID,
-			APIKeyID:       principal.APIKeyID,
-			ModelID:        model.ID,
-			ChannelID:      channel.ID,
-			Endpoint:       "/v1/chat/completions",
-			Status:         "failed",
-			HTTPStatus:     statusCode,
-			BaseCost:       "0.000000",
-			RateMultiplier: model.RateMultiplier,
-			Charge:         "0.000000",
-			ErrorCode:      "upstream_error",
-			ErrorMessage:   err.Error(),
-			ClientIP:       clientIP,
-			LatencyMS:      repository.NowMS(start),
+			RequestID:         uuid.NewString(),
+			UserID:            principal.UserID,
+			APIKeyID:          principal.APIKeyID,
+			ModelID:           model.ID,
+			ChannelID:         channel.ID,
+			UpstreamModelName: channel.UpstreamModelName,
+			Endpoint:          "/v1/chat/completions",
+			Status:            "failed",
+			HTTPStatus:        statusCode,
+			BaseCost:          "0.000000",
+			RateMultiplier:    model.RateMultiplier,
+			Charge:            "0.000000",
+			ErrorCode:         "upstream_error",
+			ErrorMessage:      err.Error(),
+			ClientIP:          clientIP,
+			LatencyMS:         repository.NowMS(start),
 		})
 		if errors.Is(err, ErrRateLimited) {
 			return http.StatusTooManyRequests, nil, err
@@ -154,23 +161,27 @@ func (s GatewayService) Chat(ctx context.Context, principal GatewayPrincipal, ra
 		actual = billing.Charge{BaseCost: 0, RateMultiplier: multiplierUnits, Charge: 0}
 	}
 	if err := s.repo.RecordAndCharge(ctx, repository.GatewayRequestRecord{
-		RequestID:        uuid.NewString(),
-		UserID:           principal.UserID,
-		APIKeyID:         principal.APIKeyID,
-		ModelID:          model.ID,
-		ChannelID:        channel.ID,
-		Endpoint:         "/v1/chat/completions",
-		Status:           status,
-		HTTPStatus:       upstreamResp.StatusCode,
-		PromptTokens:     usage.PromptTokens,
-		CompletionTokens: usage.CompletionTokens,
-		TotalTokens:      usage.TotalTokens,
-		BaseCost:         billing.UnitsToDecimalString(actual.BaseCost),
-		RateMultiplier:   model.RateMultiplier,
-		Charge:           billing.UnitsToDecimalString(actual.Charge),
-		IsEstimated:      isEstimated,
-		LatencyMS:        repository.NowMS(start),
-		ClientIP:         clientIP,
+		RequestID:           uuid.NewString(),
+		UserID:              principal.UserID,
+		APIKeyID:            principal.APIKeyID,
+		ModelID:             model.ID,
+		ChannelID:           channel.ID,
+		Endpoint:            "/v1/chat/completions",
+		Status:              status,
+		HTTPStatus:          upstreamResp.StatusCode,
+		PromptTokens:        usage.PromptTokens,
+		CompletionTokens:    usage.CompletionTokens,
+		TotalTokens:         usage.TotalTokens,
+		CacheCreationTokens: usage.CacheCreationTokens,
+		CacheReadTokens:     usage.CacheReadTokens,
+		ImageOutputTokens:   usage.ImageOutputTokens,
+		BaseCost:            billing.UnitsToDecimalString(actual.BaseCost),
+		RateMultiplier:      model.RateMultiplier,
+		Charge:              billing.UnitsToDecimalString(actual.Charge),
+		IsEstimated:         isEstimated,
+		LatencyMS:           repository.NowMS(start),
+		UpstreamModelName:   channel.UpstreamModelName,
+		ClientIP:            clientIP,
 	}); err != nil {
 		if errors.Is(err, repository.ErrSettlementInsufficientBalance) {
 			return http.StatusPaymentRequired, nil, ErrInsufficientBalance
@@ -213,21 +224,22 @@ func (s GatewayService) Embeddings(ctx context.Context, principal GatewayPrincip
 			statusCode = upstreamErr.StatusCode
 		}
 		_ = s.repo.RecordAndCharge(ctx, repository.GatewayRequestRecord{
-			RequestID:      uuid.NewString(),
-			UserID:         principal.UserID,
-			APIKeyID:       principal.APIKeyID,
-			ModelID:        model.ID,
-			ChannelID:      channel.ID,
-			Endpoint:       "/v1/embeddings",
-			Status:         "failed",
-			HTTPStatus:     statusCode,
-			BaseCost:       "0.000000",
-			RateMultiplier: model.RateMultiplier,
-			Charge:         "0.000000",
-			ErrorCode:      "upstream_error",
-			ErrorMessage:   err.Error(),
-			ClientIP:       clientIP,
-			LatencyMS:      repository.NowMS(start),
+			RequestID:         uuid.NewString(),
+			UserID:            principal.UserID,
+			APIKeyID:          principal.APIKeyID,
+			ModelID:           model.ID,
+			ChannelID:         channel.ID,
+			UpstreamModelName: channel.UpstreamModelName,
+			Endpoint:          "/v1/embeddings",
+			Status:            "failed",
+			HTTPStatus:        statusCode,
+			BaseCost:          "0.000000",
+			RateMultiplier:    model.RateMultiplier,
+			Charge:            "0.000000",
+			ErrorCode:         "upstream_error",
+			ErrorMessage:      err.Error(),
+			ClientIP:          clientIP,
+			LatencyMS:         repository.NowMS(start),
 		})
 		if errors.Is(err, ErrRateLimited) {
 			return http.StatusTooManyRequests, nil, err
@@ -253,23 +265,27 @@ func (s GatewayService) Embeddings(ctx context.Context, principal GatewayPrincip
 		actual = billing.Charge{BaseCost: 0, RateMultiplier: multiplierUnits, Charge: 0}
 	}
 	if err := s.repo.RecordAndCharge(ctx, repository.GatewayRequestRecord{
-		RequestID:        uuid.NewString(),
-		UserID:           principal.UserID,
-		APIKeyID:         principal.APIKeyID,
-		ModelID:          model.ID,
-		ChannelID:        channel.ID,
-		Endpoint:         "/v1/embeddings",
-		Status:           status,
-		HTTPStatus:       upstreamResp.StatusCode,
-		PromptTokens:     usage.PromptTokens,
-		CompletionTokens: usage.CompletionTokens,
-		TotalTokens:      usage.TotalTokens,
-		BaseCost:         billing.UnitsToDecimalString(actual.BaseCost),
-		RateMultiplier:   model.RateMultiplier,
-		Charge:           billing.UnitsToDecimalString(actual.Charge),
-		IsEstimated:      isEstimated,
-		LatencyMS:        repository.NowMS(start),
-		ClientIP:         clientIP,
+		RequestID:           uuid.NewString(),
+		UserID:              principal.UserID,
+		APIKeyID:            principal.APIKeyID,
+		ModelID:             model.ID,
+		ChannelID:           channel.ID,
+		Endpoint:            "/v1/embeddings",
+		Status:              status,
+		HTTPStatus:          upstreamResp.StatusCode,
+		PromptTokens:        usage.PromptTokens,
+		CompletionTokens:    usage.CompletionTokens,
+		TotalTokens:         usage.TotalTokens,
+		CacheCreationTokens: usage.CacheCreationTokens,
+		CacheReadTokens:     usage.CacheReadTokens,
+		ImageOutputTokens:   usage.ImageOutputTokens,
+		BaseCost:            billing.UnitsToDecimalString(actual.BaseCost),
+		RateMultiplier:      model.RateMultiplier,
+		Charge:              billing.UnitsToDecimalString(actual.Charge),
+		IsEstimated:         isEstimated,
+		LatencyMS:           repository.NowMS(start),
+		UpstreamModelName:   channel.UpstreamModelName,
+		ClientIP:            clientIP,
 	}); err != nil {
 		if errors.Is(err, repository.ErrSettlementInsufficientBalance) {
 			return http.StatusPaymentRequired, nil, ErrInsufficientBalance
@@ -313,7 +329,7 @@ func (s GatewayService) OpenChatStream(ctx context.Context, principal GatewayPri
 	return model, channel, estimate.Charge, resp, nil
 }
 
-func (s GatewayService) FinalizeStream(ctx context.Context, principal GatewayPrincipal, model repository.GatewayModel, channel repository.GatewayChannel, rawBody []byte, responseBody []byte, estimate int64, statusCode int, clientIP string, start time.Time) {
+func (s GatewayService) FinalizeStream(ctx context.Context, principal GatewayPrincipal, model repository.GatewayModel, channel repository.GatewayChannel, rawBody []byte, responseBody []byte, estimate int64, statusCode int, clientIP string, start time.Time, firstTokenMS int) {
 	s.frozen.ReleaseConcurrency(ctx, "key:"+principal.APIKeyID)
 	s.frozen.ReleaseConcurrency(ctx, "channel:"+channel.ID)
 	defer billing.Release(ctx, s.frozen, principal.UserID, estimate)
@@ -338,24 +354,29 @@ func (s GatewayService) FinalizeStream(ctx context.Context, principal GatewayPri
 		actual = billing.Charge{BaseCost: 0, RateMultiplier: multiplierUnits, Charge: 0}
 	}
 	_ = s.repo.RecordAndCharge(ctx, repository.GatewayRequestRecord{
-		RequestID:        uuid.NewString(),
-		UserID:           principal.UserID,
-		APIKeyID:         principal.APIKeyID,
-		ModelID:          model.ID,
-		ChannelID:        channel.ID,
-		Endpoint:         "/v1/chat/completions",
-		Status:           status,
-		HTTPStatus:       statusCode,
-		PromptTokens:     usage.PromptTokens,
-		CompletionTokens: usage.CompletionTokens,
-		TotalTokens:      usage.TotalTokens,
-		BaseCost:         billing.UnitsToDecimalString(actual.BaseCost),
-		RateMultiplier:   model.RateMultiplier,
-		Charge:           billing.UnitsToDecimalString(actual.Charge),
-		IsStream:         true,
-		IsEstimated:      isEstimated,
-		LatencyMS:        repository.NowMS(start),
-		ClientIP:         clientIP,
+		RequestID:           uuid.NewString(),
+		UserID:              principal.UserID,
+		APIKeyID:            principal.APIKeyID,
+		ModelID:             model.ID,
+		ChannelID:           channel.ID,
+		Endpoint:            "/v1/chat/completions",
+		Status:              status,
+		HTTPStatus:          statusCode,
+		PromptTokens:        usage.PromptTokens,
+		CompletionTokens:    usage.CompletionTokens,
+		TotalTokens:         usage.TotalTokens,
+		CacheCreationTokens: usage.CacheCreationTokens,
+		CacheReadTokens:     usage.CacheReadTokens,
+		ImageOutputTokens:   usage.ImageOutputTokens,
+		BaseCost:            billing.UnitsToDecimalString(actual.BaseCost),
+		RateMultiplier:      model.RateMultiplier,
+		Charge:              billing.UnitsToDecimalString(actual.Charge),
+		IsStream:            true,
+		IsEstimated:         isEstimated,
+		LatencyMS:           repository.NowMS(start),
+		FirstTokenMS:        firstTokenMS,
+		UpstreamModelName:   channel.UpstreamModelName,
+		ClientIP:            clientIP,
 	})
 }
 
@@ -384,8 +405,10 @@ func estimateChargeForModel(model repository.GatewayModel, req ChatRequest, esti
 	}
 	inputUnits, _ := billing.DecimalStringToUnits(model.InputPricePer1K)
 	outputUnits, _ := billing.DecimalStringToUnits(model.OutputPricePer1K)
+	cacheCreationUnits, _ := billing.DecimalStringToUnits(model.CacheCreationPricePer1K)
+	cacheReadUnits, _ := billing.DecimalStringToUnits(model.CacheReadPricePer1K)
 	return billing.CalculateTokenCharge(
-		billing.TokenPricing{InputPricePer1K: inputUnits, OutputPricePer1K: outputUnits, RateMultiplier: multiplierUnits},
+		billing.TokenPricing{InputPricePer1K: inputUnits, OutputPricePer1K: outputUnits, CacheCreationPricePer1K: cacheCreationUnits, CacheReadPricePer1K: cacheReadUnits, RateMultiplier: multiplierUnits},
 		billing.TokenUsage{InputTokens: estimatedInput, OutputTokens: req.MaxTokens},
 	)
 }
@@ -397,9 +420,11 @@ func actualChargeForModel(model repository.GatewayModel, req ChatRequest, usage 
 	}
 	inputUnits, _ := billing.DecimalStringToUnits(model.InputPricePer1K)
 	outputUnits, _ := billing.DecimalStringToUnits(model.OutputPricePer1K)
+	cacheCreationUnits, _ := billing.DecimalStringToUnits(model.CacheCreationPricePer1K)
+	cacheReadUnits, _ := billing.DecimalStringToUnits(model.CacheReadPricePer1K)
 	return billing.CalculateTokenCharge(
-		billing.TokenPricing{InputPricePer1K: inputUnits, OutputPricePer1K: outputUnits, RateMultiplier: multiplierUnits},
-		billing.TokenUsage{InputTokens: int64(usage.PromptTokens), OutputTokens: int64(usage.CompletionTokens)},
+		billing.TokenPricing{InputPricePer1K: inputUnits, OutputPricePer1K: outputUnits, CacheCreationPricePer1K: cacheCreationUnits, CacheReadPricePer1K: cacheReadUnits, RateMultiplier: multiplierUnits},
+		billing.TokenUsage{InputTokens: int64(usage.PromptTokens), OutputTokens: int64(usage.CompletionTokens), CacheCreationTokens: int64(usage.CacheCreationTokens), CacheReadTokens: int64(usage.CacheReadTokens)},
 	)
 }
 
@@ -421,7 +446,12 @@ func (s GatewayService) forwardWithRetry(ctx context.Context, modelID string, ra
 	var lastChannel repository.GatewayChannel
 	var lastErr error = ErrNoHealthyChannel
 	limited := true
-	for _, channel := range s.orderChannels(ctx, sticky, channels) {
+	excluded := map[string]struct{}{}
+	ordered := s.orderChannels(ctx, sticky, channels, excluded)
+	if len(ordered) == 0 {
+		return lastChannel, upstream.ChatResponse{}, ErrNoHealthyChannel
+	}
+	for _, channel := range ordered {
 		lastChannel = channel
 		ok, err := s.acquireChannel(ctx, channel)
 		if err != nil {
@@ -436,12 +466,12 @@ func (s GatewayService) forwardWithRetry(ctx context.Context, modelID string, ra
 		s.frozen.ReleaseConcurrency(ctx, "channel:"+channel.ID)
 		if err != nil {
 			lastErr = err
-			_ = s.repo.MarkChannelFailure(ctx, channel.ID, err.Error())
+			s.markChannelFailure(ctx, channel, 0, err.Error(), excluded)
 			continue
 		}
 		if shouldRetryStatus(resp.StatusCode) {
 			lastErr = &UpstreamError{StatusCode: resp.StatusCode, Body: resp.Body}
-			_ = s.repo.MarkChannelFailure(ctx, channel.ID, lastErr.Error())
+			s.markChannelFailure(ctx, channel, resp.StatusCode, lastErr.Error(), excluded)
 			continue
 		}
 		_ = s.repo.MarkChannelSuccess(ctx, channel.ID)
@@ -465,7 +495,12 @@ func (s GatewayService) forwardEmbeddingsWithRetry(ctx context.Context, modelID 
 	var lastChannel repository.GatewayChannel
 	var lastErr error = ErrNoHealthyChannel
 	limited := true
-	for _, channel := range s.orderChannels(ctx, sticky, channels) {
+	excluded := map[string]struct{}{}
+	ordered := s.orderChannels(ctx, sticky, channels, excluded)
+	if len(ordered) == 0 {
+		return lastChannel, upstream.ChatResponse{}, ErrNoHealthyChannel
+	}
+	for _, channel := range ordered {
 		lastChannel = channel
 		ok, err := s.acquireChannel(ctx, channel)
 		if err != nil {
@@ -480,12 +515,12 @@ func (s GatewayService) forwardEmbeddingsWithRetry(ctx context.Context, modelID 
 		s.frozen.ReleaseConcurrency(ctx, "channel:"+channel.ID)
 		if err != nil {
 			lastErr = err
-			_ = s.repo.MarkChannelFailure(ctx, channel.ID, err.Error())
+			s.markChannelFailure(ctx, channel, 0, err.Error(), excluded)
 			continue
 		}
 		if shouldRetryStatus(resp.StatusCode) {
 			lastErr = &UpstreamError{StatusCode: resp.StatusCode, Body: resp.Body}
-			_ = s.repo.MarkChannelFailure(ctx, channel.ID, lastErr.Error())
+			s.markChannelFailure(ctx, channel, resp.StatusCode, lastErr.Error(), excluded)
 			continue
 		}
 		_ = s.repo.MarkChannelSuccess(ctx, channel.ID)
@@ -509,7 +544,12 @@ func (s GatewayService) openStreamWithRetry(ctx context.Context, modelID string,
 	var lastChannel repository.GatewayChannel
 	var lastErr error = ErrNoHealthyChannel
 	limited := true
-	for _, channel := range s.orderChannels(ctx, sticky, channels) {
+	excluded := map[string]struct{}{}
+	ordered := s.orderChannels(ctx, sticky, channels, excluded)
+	if len(ordered) == 0 {
+		return lastChannel, nil, ErrNoHealthyChannel
+	}
+	for _, channel := range ordered {
 		lastChannel = channel
 		ok, err := s.acquireChannel(ctx, channel)
 		if err != nil {
@@ -524,7 +564,7 @@ func (s GatewayService) openStreamWithRetry(ctx context.Context, modelID string,
 		if err != nil {
 			s.frozen.ReleaseConcurrency(ctx, "channel:"+channel.ID)
 			lastErr = err
-			_ = s.repo.MarkChannelFailure(ctx, channel.ID, err.Error())
+			s.markChannelFailure(ctx, channel, 0, err.Error(), excluded)
 			continue
 		}
 		if shouldRetryStatus(resp.StatusCode) {
@@ -534,7 +574,7 @@ func (s GatewayService) openStreamWithRetry(ctx context.Context, modelID string,
 				body = []byte(readErr.Error())
 			}
 			lastErr = &UpstreamError{StatusCode: resp.StatusCode, Body: body}
-			_ = s.repo.MarkChannelFailure(ctx, channel.ID, lastErr.Error())
+			s.markChannelFailure(ctx, channel, resp.StatusCode, lastErr.Error(), excluded)
 			s.frozen.ReleaseConcurrency(ctx, "channel:"+channel.ID)
 			continue
 		}
@@ -556,9 +596,24 @@ func (s GatewayService) acquireChannel(ctx context.Context, channel repository.G
 	return s.frozen.TryAcquire(ctx, "channel:"+channel.ID, channel.ConcurrencyLimit, 5*time.Minute)
 }
 
-func (s GatewayService) orderChannels(ctx context.Context, sticky string, channels []repository.GatewayChannel) []repository.GatewayChannel {
+func (s GatewayService) orderChannels(ctx context.Context, sticky string, channels []repository.GatewayChannel, excluded map[string]struct{}) []repository.GatewayChannel {
 	ordered := make([]repository.GatewayChannel, 0, len(channels))
-	remaining := append([]repository.GatewayChannel(nil), channels...)
+	remaining := make([]repository.GatewayChannel, 0, len(channels))
+	for _, channel := range channels {
+		if _, ok := excluded[channel.ID]; ok {
+			continue
+		}
+		if cooling, err := s.frozen.IsChannelCooling(ctx, channel.ID); err == nil && cooling {
+			continue
+		}
+		if limited, err := s.frozen.IsChannelRateLimited(ctx, channel.ID); err == nil && limited {
+			continue
+		}
+		if overloaded, err := s.frozen.IsChannelOverloaded(ctx, channel.ID); err == nil && overloaded {
+			continue
+		}
+		remaining = append(remaining, channel)
+	}
 	if sticky != "" {
 		if stickyChannelID, err := s.frozen.GetStickyChannel(ctx, sticky); err == nil && stickyChannelID != "" {
 			for i, channel := range remaining {
@@ -572,6 +627,22 @@ func (s GatewayService) orderChannels(ctx context.Context, sticky string, channe
 	}
 	ordered = append(ordered, weightedRandomOrder(remaining)...)
 	return ordered
+}
+
+func (s GatewayService) markChannelFailure(ctx context.Context, channel repository.GatewayChannel, status int, message string, excluded map[string]struct{}) {
+	if channel.ID == "" {
+		return
+	}
+	excluded[channel.ID] = struct{}{}
+	_ = s.repo.MarkChannelFailure(ctx, channel.ID, message)
+	cooldown := channelCooldownForStatus(status)
+	_ = s.frozen.SetChannelCooldown(ctx, channel.ID, message, cooldown)
+	if status == http.StatusTooManyRequests {
+		_ = s.frozen.SetChannelRateLimited(ctx, channel.ID, message, cooldown)
+	}
+	if status == 529 {
+		_ = s.frozen.SetChannelOverloaded(ctx, channel.ID, message, cooldown)
+	}
 }
 
 func (s GatewayService) rememberSticky(ctx context.Context, sticky, channelID string) {
@@ -662,7 +733,18 @@ func (s GatewayService) openStreamOnce(ctx context.Context, channel repository.G
 }
 
 func shouldRetryStatus(status int) bool {
-	return status >= 500
+	return status == http.StatusTooManyRequests || status == 529 || status >= 500
+}
+
+func channelCooldownForStatus(status int) time.Duration {
+	switch status {
+	case http.StatusTooManyRequests:
+		return channelRateLimitCooldown
+	case 529:
+		return channelOverloadCooldown
+	default:
+		return channelFailureCooldown
+	}
 }
 
 func NormalizeUpstreamErrorBody(status int, body []byte) []byte {
@@ -720,16 +802,25 @@ func bodyWithMaxTokens(rawBody []byte, maxTokens int) []byte {
 }
 
 func CopyAndCapture(dst http.ResponseWriter, src io.Reader) ([]byte, error) {
+	captured, _, err := CopyAndCaptureWithFirstByte(dst, src, time.Now())
+	return captured, err
+}
+
+func CopyAndCaptureWithFirstByte(dst http.ResponseWriter, src io.Reader, start time.Time) ([]byte, int, error) {
 	var captured []byte
+	firstByteMS := 0
 	buf := make([]byte, 32*1024)
 	flusher, _ := dst.(http.Flusher)
 	for {
 		n, readErr := src.Read(buf)
 		if n > 0 {
+			if firstByteMS == 0 {
+				firstByteMS = repository.NowMS(start)
+			}
 			chunk := buf[:n]
 			captured = append(captured, chunk...)
 			if _, err := dst.Write(chunk); err != nil {
-				return captured, err
+				return captured, firstByteMS, err
 			}
 			if flusher != nil {
 				flusher.Flush()
@@ -737,9 +828,9 @@ func CopyAndCapture(dst http.ResponseWriter, src io.Reader) ([]byte, error) {
 		}
 		if readErr != nil {
 			if readErr == io.EOF {
-				return captured, nil
+				return captured, firstByteMS, nil
 			}
-			return captured, readErr
+			return captured, firstByteMS, readErr
 		}
 	}
 }

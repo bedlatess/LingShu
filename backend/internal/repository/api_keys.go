@@ -7,18 +7,20 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 )
 
 type APIKey struct {
-	ID        string     `json:"id"`
-	UserID    string     `json:"user_id"`
-	Mask      string     `json:"mask"`
-	Name      string     `json:"name"`
-	Status    string     `json:"status"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
-	CreatedAt time.Time  `json:"created_at"`
+	ID               string     `json:"id"`
+	UserID           string     `json:"user_id"`
+	Mask             string     `json:"mask"`
+	Name             string     `json:"name"`
+	Status           string     `json:"status"`
+	AllowedEndpoints []string   `json:"allowed_endpoints"`
+	ExpiresAt        *time.Time `json:"expires_at,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
 }
 
 type APIKeyPrincipal struct {
@@ -30,21 +32,25 @@ type APIKeyPrincipal struct {
 	Balance          string
 	RPMLimit         int
 	ConcurrencyLimit int
+	AllowedEndpoints []string
 }
 
 type CreateAPIKeyParams struct {
-	UserID    string
-	KeyPrefix string
-	KeyHash   string
-	Mask      string
-	Name      string
+	UserID           string
+	KeyPrefix        string
+	KeyHash          string
+	Mask             string
+	Name             string
+	AllowedEndpoints []string
 }
 
 type UpdateAPIKeyParams struct {
-	ID     string
-	UserID string
-	Name   string
-	Status string
+	ID                     string
+	UserID                 string
+	Name                   string
+	Status                 string
+	AllowedEndpoints       []string
+	UpdateAllowedEndpoints bool
 }
 
 type APIKeyRepository struct {
@@ -75,7 +81,7 @@ func (r APIKeyRepository) ListByUserPaged(ctx context.Context, userID string, li
 		return nil, 0, err
 	}
 	rows, err := r.db.Query(ctx, `
-		SELECT id::text, user_id::text, key_prefix, name, status, expires_at, created_at
+		SELECT id::text, user_id::text, key_prefix, name, status, allowed_endpoints, expires_at, created_at
 		FROM api_keys
 		WHERE user_id=$1 AND deleted_at IS NULL
 		ORDER BY created_at DESC
@@ -108,7 +114,7 @@ func (r APIKeyRepository) ListAllPaged(ctx context.Context, limit, offset int) (
 		return nil, 0, err
 	}
 	rows, err := r.db.Query(ctx, `
-		SELECT id::text, user_id::text, key_prefix, name, status, expires_at, created_at
+		SELECT id::text, user_id::text, key_prefix, name, status, allowed_endpoints, expires_at, created_at
 		FROM api_keys
 		WHERE deleted_at IS NULL
 		ORDER BY created_at DESC
@@ -132,10 +138,10 @@ func (r APIKeyRepository) ListAllPaged(ctx context.Context, limit, offset int) (
 
 func (r APIKeyRepository) Create(ctx context.Context, params CreateAPIKeyParams) (APIKey, error) {
 	row := r.db.QueryRow(ctx, `
-		INSERT INTO api_keys (user_id, key_prefix, key_hash, name, status)
-		VALUES ($1, $2, $3, $4, 'active')
-		RETURNING id::text, user_id::text, key_prefix, name, status, expires_at, created_at
-	`, params.UserID, params.Mask, params.KeyHash, params.Name)
+		INSERT INTO api_keys (user_id, key_prefix, key_hash, name, status, allowed_endpoints)
+		VALUES ($1, $2, $3, $4, 'active', $5)
+		RETURNING id::text, user_id::text, key_prefix, name, status, allowed_endpoints, expires_at, created_at
+	`, params.UserID, params.Mask, params.KeyHash, params.Name, params.AllowedEndpoints)
 	return scanAPIKey(row)
 }
 
@@ -157,10 +163,11 @@ func (r APIKeyRepository) UpdateForUser(ctx context.Context, params UpdateAPIKey
 		UPDATE api_keys
 		SET name=CASE WHEN $3='' THEN name ELSE $3 END,
 		    status=CASE WHEN $4='' THEN status ELSE $4 END,
+		    allowed_endpoints=CASE WHEN $6 THEN $5 ELSE allowed_endpoints END,
 		    updated_at=now()
 		WHERE id=$1 AND user_id=$2 AND deleted_at IS NULL
-		RETURNING id::text, user_id::text, key_prefix, name, status, expires_at, created_at
-	`, params.ID, params.UserID, params.Name, params.Status)
+		RETURNING id::text, user_id::text, key_prefix, name, status, allowed_endpoints, expires_at, created_at
+	`, params.ID, params.UserID, params.Name, params.Status, params.AllowedEndpoints, params.UpdateAllowedEndpoints)
 	return scanAPIKey(row)
 }
 
@@ -205,11 +212,11 @@ func (r APIKeyRepository) FindPrincipalByHash(ctx context.Context, hash string) 
 	}
 	err := r.db.QueryRow(ctx, `
 		SELECT k.id::text, u.id::text, u.role, u.status, k.status, u.balance::text,
-		       k.rpm_limit, k.concurrency_limit
+		       k.rpm_limit, k.concurrency_limit, k.allowed_endpoints
 		FROM api_keys k
 		JOIN users u ON u.id = k.user_id
 		WHERE k.key_hash=$1 AND k.deleted_at IS NULL
-	`, hash).Scan(&principal.APIKeyID, &principal.UserID, &principal.UserRole, &principal.UserStatus, &principal.KeyStatus, &principal.Balance, &principal.RPMLimit, &principal.ConcurrencyLimit)
+	`, hash).Scan(&principal.APIKeyID, &principal.UserID, &principal.UserRole, &principal.UserStatus, &principal.KeyStatus, &principal.Balance, &principal.RPMLimit, &principal.ConcurrencyLimit, &principal.AllowedEndpoints)
 	if err == nil && r.redis != nil {
 		if payload, jsonErr := json.Marshal(principal); jsonErr == nil {
 			_ = r.redis.Set(ctx, apiKeyCacheKey(hash), payload, time.Minute).Err()
@@ -289,6 +296,11 @@ type apiKeyScanner interface {
 
 func scanAPIKey(row apiKeyScanner) (APIKey, error) {
 	var item APIKey
-	err := row.Scan(&item.ID, &item.UserID, &item.Mask, &item.Name, &item.Status, &item.ExpiresAt, &item.CreatedAt)
+	var endpoints pgtype.FlatArray[string]
+	err := row.Scan(&item.ID, &item.UserID, &item.Mask, &item.Name, &item.Status, &endpoints, &item.ExpiresAt, &item.CreatedAt)
+	item.AllowedEndpoints = []string(endpoints)
+	if item.AllowedEndpoints == nil {
+		item.AllowedEndpoints = []string{}
+	}
 	return item, err
 }

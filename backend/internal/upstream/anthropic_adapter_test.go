@@ -93,6 +93,50 @@ func TestConvertAnthropicStreamKeepsUsageExtractable(t *testing.T) {
 	}
 }
 
+func TestAnthropicResponseToOpenAIMapsCacheUsage(t *testing.T) {
+	body, usage := AnthropicResponseToOpenAI([]byte(`{
+		"id":"msg_cache",
+		"model":"claude-cache",
+		"content":[{"type":"text","text":"hello"}],
+		"stop_reason":"end_turn",
+		"usage":{"input_tokens":11,"output_tokens":7,"cache_creation_input_tokens":13,"cache_read_input_tokens":17}
+	}`))
+	if usage.PromptTokens != 11 || usage.CompletionTokens != 7 || usage.TotalTokens != 18 {
+		t.Fatalf("unexpected usage: %+v", usage)
+	}
+	if usage.CacheCreationTokens != 13 || usage.CacheReadTokens != 17 {
+		t.Fatalf("unexpected cache usage: %+v", usage)
+	}
+	text := string(body)
+	for _, want := range []string{`"cache_creation_tokens":13`, `"cache_read_tokens":17`} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("converted response missing %s: %s", want, text)
+		}
+	}
+}
+
+func TestAnthropicStreamMapsCacheUsage(t *testing.T) {
+	raw := strings.NewReader(strings.Join([]string{
+		`event: message_start`,
+		`data: {"type":"message_start","message":{"model":"claude-cache","usage":{"input_tokens":13,"cache_creation_input_tokens":3,"cache_read_input_tokens":5}}}`,
+		``,
+		`event: content_block_delta`,
+		`data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"hi"}}`,
+		``,
+		`event: message_delta`,
+		`data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":5}}`,
+		``,
+	}, "\n"))
+	converted, err := ConvertAnthropicStream(raw)
+	if err != nil {
+		t.Fatalf("ConvertAnthropicStream failed: %v", err)
+	}
+	usage := ExtractStreamUsage(string(converted))
+	if usage.CacheCreationTokens != 3 || usage.CacheReadTokens != 5 {
+		t.Fatalf("cache usage not extractable: %+v\n%s", usage, string(converted))
+	}
+}
+
 func TestStreamAnthropicToOpenAIPreservesRealSSEContent(t *testing.T) {
 	raw := strings.Join([]string{
 		"event: message_start\r",

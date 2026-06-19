@@ -99,6 +99,12 @@ func normalizeModel(input repository.ModelInput) repository.ModelInput {
 	if input.OutputPricePer1K == "" {
 		input.OutputPricePer1K = "0"
 	}
+	if input.CacheCreationPricePer1K == "" {
+		input.CacheCreationPricePer1K = "0"
+	}
+	if input.CacheReadPricePer1K == "" {
+		input.CacheReadPricePer1K = "0"
+	}
 	if input.PricePerCall == "" {
 		input.PricePerCall = "0"
 	}

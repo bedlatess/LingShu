@@ -69,7 +69,7 @@ func TestOpenAIToAnthropicResponse(t *testing.T) {
 		"id":"chatcmpl-1",
 		"model":"claude-opus-4-7",
 		"choices":[{"message":{"role":"assistant","content":"Hi."},"finish_reason":"stop"}],
-		"usage":{"prompt_tokens":10,"completion_tokens":3,"total_tokens":13}
+		"usage":{"prompt_tokens":10,"completion_tokens":3,"total_tokens":13,"prompt_tokens_details":{"cached_tokens":4}}
 	}`)
 	out, err := OpenAIToAnthropicResponse(openAI)
 	if err != nil {
@@ -84,8 +84,9 @@ func TestOpenAIToAnthropicResponse(t *testing.T) {
 		} `json:"content"`
 		StopReason string `json:"stop_reason"`
 		Usage      struct {
-			InputTokens  int `json:"input_tokens"`
-			OutputTokens int `json:"output_tokens"`
+			InputTokens          int `json:"input_tokens"`
+			OutputTokens         int `json:"output_tokens"`
+			CacheReadInputTokens int `json:"cache_read_input_tokens"`
 		} `json:"usage"`
 	}
 	if err := json.Unmarshal(out, &parsed); err != nil {
@@ -100,7 +101,7 @@ func TestOpenAIToAnthropicResponse(t *testing.T) {
 	if parsed.StopReason != "end_turn" {
 		t.Fatalf("stop_reason want end_turn got %s", parsed.StopReason)
 	}
-	if parsed.Usage.InputTokens != 10 || parsed.Usage.OutputTokens != 3 {
+	if parsed.Usage.InputTokens != 10 || parsed.Usage.OutputTokens != 3 || parsed.Usage.CacheReadInputTokens != 4 {
 		t.Fatalf("usage mismatch: %s", out)
 	}
 }
@@ -112,7 +113,7 @@ func TestStreamOpenAIToAnthropic(t *testing.T) {
 		``,
 		`data: {"choices":[{"delta":{"content":"lo"},"finish_reason":"stop"}]}`,
 		``,
-		`data: {"choices":[],"usage":{"prompt_tokens":5,"completion_tokens":2,"total_tokens":7}}`,
+		`data: {"choices":[],"usage":{"prompt_tokens":5,"completion_tokens":2,"total_tokens":7,"prompt_tokens_details":{"cached_tokens":4}}}`,
 		``,
 		`data: [DONE]`,
 		``,
@@ -135,6 +136,7 @@ func TestStreamOpenAIToAnthropic(t *testing.T) {
 		"event: message_delta",
 		`"stop_reason":"end_turn"`,
 		`"output_tokens":2`,
+		`"cache_read_input_tokens":4`,
 		"event: message_stop",
 	} {
 		if !strings.Contains(anthropic, want) {
@@ -143,7 +145,7 @@ func TestStreamOpenAIToAnthropic(t *testing.T) {
 	}
 
 	// captured 必须是完整 OpenAI 原始流（含 usage 末帧），供 FinalizeStream 扣费。
-	if got := ExtractStreamUsage(string(captured)); got.TotalTokens != 7 {
-		t.Fatalf("captured OpenAI usage mismatch: got total=%d\ncaptured:\n%s", got.TotalTokens, captured)
+	if got := ExtractStreamUsage(string(captured)); got.TotalTokens != 7 || got.CacheReadTokens != 4 {
+		t.Fatalf("captured OpenAI usage mismatch: got total=%d cache_read=%d\ncaptured:\n%s", got.TotalTokens, got.CacheReadTokens, captured)
 	}
 }

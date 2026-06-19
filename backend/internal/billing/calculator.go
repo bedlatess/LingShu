@@ -3,14 +3,18 @@ package billing
 import "math"
 
 type TokenPricing struct {
-	InputPricePer1K  int64
-	OutputPricePer1K int64
-	RateMultiplier   int64
+	InputPricePer1K         int64
+	OutputPricePer1K        int64
+	CacheCreationPricePer1K int64
+	CacheReadPricePer1K     int64
+	RateMultiplier          int64
 }
 
 type TokenUsage struct {
-	InputTokens  int64
-	OutputTokens int64
+	InputTokens         int64
+	OutputTokens        int64
+	CacheCreationTokens int64
+	CacheReadTokens     int64
 }
 
 type Charge struct {
@@ -24,7 +28,9 @@ const Scale int64 = 1_000_000
 func CalculateTokenCharge(pricing TokenPricing, usage TokenUsage) Charge {
 	inputCost := divCeil(usage.InputTokens*pricing.InputPricePer1K, 1000)
 	outputCost := divCeil(usage.OutputTokens*pricing.OutputPricePer1K, 1000)
-	baseCost := inputCost + outputCost
+	cacheCreationCost := divCeil(usage.CacheCreationTokens*pricing.CacheCreationPricePer1K, 1000)
+	cacheReadCost := divCeil(usage.CacheReadTokens*pricing.CacheReadPricePer1K, 1000)
+	baseCost := inputCost + outputCost + cacheCreationCost + cacheReadCost
 	charge := divCeil(baseCost*pricing.RateMultiplier, Scale)
 	return Charge{
 		BaseCost:       baseCost,

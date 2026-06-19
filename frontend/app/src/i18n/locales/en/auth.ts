@@ -1,0 +1,70 @@
+const auth = {
+  title: "LingShu Console",
+  description: "Use one entry point to manage API keys, model availability, usage records, and platform operations.",
+  badge: "Private AI API gateway",
+  featureUnified: "Unified OpenAI-compatible endpoint",
+  featureBilling: "Clear balance and charge tracking",
+  featureRoles: "One site with role separation",
+  loginTitle: "Sign in",
+  loginDescription: "Enter the account credentials already enabled for you.",
+  username: "Username or email",
+  password: "Password",
+  usernameOnly: "Username",
+  email: "Email",
+  emailCode: "Email code",
+  newPassword: "New password",
+  captchaToken: "Captcha token",
+  submit: "Enter Console",
+  submitting: "Signing in...",
+  success: "Signed in",
+  failed: "Sign-in failed",
+  forgotLink: "Forgot password?",
+  registerLink: "Create account",
+  backToLogin: "Back to sign in",
+  terms: "Terms",
+  privacy: "Privacy Policy",
+  and: "and",
+  agreePrefix: "I have read and agree to the",
+  mustAgree: "Please agree to the Terms and Privacy Policy first.",
+  emailRequired: "Please enter your email first.",
+  sendCode: "Send code",
+  codeSent: "Verification code sent. Please check your inbox.",
+  codeSendFailed: "Failed to send verification code",
+  loadingPolicy: "Loading registration policy...",
+  registerTitle: "Create a LingShu account",
+  registerDescription: "Register with an email verification code, then create API keys, review usage, and redeem balance.",
+  registerOpsNote: "For private operation, admins can close public registration from system settings at any time.",
+  registrationClosedTitle: "Registration is closed",
+  registrationClosedDescription: "Accounts are currently opened by administrators. Please contact the operator for access.",
+  createAccount: "Create account",
+  createAccountDescription: "Codes expire in 10 minutes. Each email can request a code once every 60 seconds.",
+  registerSubmit: "Create account",
+  registerSuccess: "Account created. Please sign in.",
+  registerFailed: "Registration failed",
+  forgotTitle: "Reset password",
+  forgotDescription: "Enter your account email, verify the code, and set a new password.",
+  resetSubmit: "Reset password",
+  resetSuccess: "Password reset",
+  resetFailed: "Password reset failed",
+  resetDoneTitle: "Password updated",
+  resetDoneDescription: "Return to sign in",
+  footer: {
+    description: "LingShu provides private AI API aggregation and usage management. Operators manage account access, balance grants, and compliance settings."
+  },
+  legal: {
+    eyebrow: "Legal",
+    loadFailed: "Failed to load legal page",
+    tos: {
+      title: "Terms of Service",
+      description: "Review the platform rules before using the service.",
+      fallback: "# Terms of Service\n\nThe administrator has not configured the terms yet."
+    },
+    privacy: {
+      title: "Privacy Policy",
+      description: "Learn how the site handles account, request, and operational information.",
+      fallback: "# Privacy Policy\n\nThe administrator has not configured the privacy policy yet."
+    }
+  }
+};
+
+export default auth;

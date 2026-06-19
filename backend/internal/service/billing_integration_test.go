@@ -26,6 +26,7 @@ import (
 	"lingshu/backend/internal/pkg/password"
 	"lingshu/backend/internal/pkg/token"
 	"lingshu/backend/internal/server"
+	servicepkg "lingshu/backend/internal/service"
 )
 
 type billingHarness struct {
@@ -51,6 +52,26 @@ func TestBillingMoneyPathsIntegration(t *testing.T) {
 		}
 		assertMoneyPath(t, h.db, h.userID, "public-token", "0.050000", "1.300", "0.065000")
 		assertBalance(t, h.db, h.userID, "199.935000")
+	})
+
+	t.Run("cache usage is included in token base cost", func(t *testing.T) {
+		cached := newBillingHarness(t, 10.000000, 20)
+		status, body := cached.chat(t, cached.apiKey, "public-cache", 1)
+		if status != http.StatusOK {
+			t.Fatalf("status=%d body=%s", status, body)
+		}
+		assertMoneyPath(t, cached.db, cached.userID, "public-cache", "0.051500", "1.300", "0.066950")
+		assertGatewayRequestUsage(t, cached.db, cached.userID, "public-cache", 20, 50, "upstream-cache")
+	})
+
+	t.Run("stream records first token latency and upstream model", func(t *testing.T) {
+		streamed := newBillingHarness(t, 10.000000, 20)
+		status, body := streamed.streamChat(t, streamed.apiKey, "public-token")
+		if status != http.StatusOK {
+			t.Fatalf("status=%d body=%s", status, body)
+		}
+		assertMoneyPath(t, streamed.db, streamed.userID, "public-token", "0.050000", "1.300", "0.065000")
+		assertStreamObservability(t, streamed.db, streamed.userID, "public-token", "upstream-token")
 	})
 
 	t.Run("per_call model charges price per call times n times multiplier", func(t *testing.T) {
@@ -131,6 +152,22 @@ func TestBillingConcurrentReserveDoesNotOverdraw(t *testing.T) {
 	t.Logf("concurrency assertion: successes=%d payment_required=%d final_balance=0.000000", successes, paymentRequired)
 }
 
+func TestOpsDashboardIntegration(t *testing.T) {
+	h := newBillingHarness(t, 10.000000, 20)
+	status, body := h.chat(t, h.apiKey, "public-token", 1)
+	if status != http.StatusOK {
+		t.Fatalf("status=%d body=%s", status, body)
+	}
+	ops, err := servicepkg.NewOpsService(h.db).Dashboard(context.Background())
+	if err != nil {
+		t.Fatalf("ops dashboard: %v", err)
+	}
+	if ops.Summary.Requests24h == 0 || len(ops.Trends) == 0 || len(ops.Channels) == 0 || len(ops.Statuses) == 0 {
+		t.Fatalf("ops dashboard missing aggregates: %+v", ops)
+	}
+	t.Logf("ops summary: rpm=%d tpm=%d requests_24h=%d p95=%d", ops.Summary.RPM, ops.Summary.TPM, ops.Summary.Requests24h, ops.Summary.P95LatencyMS)
+}
+
 func newBillingHarness(t *testing.T, initialBalance float64, concurrencyLimit int) *billingHarness {
 	t.Helper()
 	ctx := context.Background()
@@ -165,12 +202,34 @@ func newBillingHarness(t *testing.T, initialBalance float64, concurrencyLimit in
 	t.Cleanup(func() { _ = redisClient.Close() })
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload struct {
+			Model  string `json:"model"`
+			Stream bool   `json:"stream"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+		usage := map[string]any{"prompt_tokens": 100, "completion_tokens": 200, "total_tokens": 300}
+		if payload.Model == "upstream-cache" {
+			usage["cache_creation_tokens"] = 20
+			usage["prompt_tokens_details"] = map[string]any{"cached_tokens": 50}
+		}
+		if payload.Stream {
+			w.Header().Set("Content-Type", "text/event-stream")
+			flusher, _ := w.(http.Flusher)
+			time.Sleep(15 * time.Millisecond)
+			_, _ = fmt.Fprint(w, `data: {"id":"chunk-1","object":"chat.completion.chunk","choices":[{"delta":{"content":"ok"}}]}`+"\n\n")
+			if flusher != nil {
+				flusher.Flush()
+			}
+			_, _ = fmt.Fprintf(w, "data: {\"id\":\"chunk-usage\",\"object\":\"chat.completion.chunk\",\"choices\":[],\"usage\":%s}\n\n", mustJSON(t, usage))
+			_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"id":      "chatcmpl-test",
 			"object":  "chat.completion",
 			"choices": []map[string]any{{"message": map[string]any{"role": "assistant", "content": "ok"}, "finish_reason": "stop"}},
-			"usage":   map[string]any{"prompt_tokens": 100, "completion_tokens": 200, "total_tokens": 300},
+			"usage":   usage,
 		})
 	}))
 	t.Cleanup(upstream.Close)
@@ -229,13 +288,24 @@ func (h *billingHarness) seed(t *testing.T, initialBalance float64, concurrencyL
 	`, h.userID, apikey.Mask(h.apiKey), apikey.Hash(h.apiKey), concurrencyLimit); err != nil {
 		t.Fatalf("seed api key: %v", err)
 	}
-	var tokenModelID, imageModelID, channelID string
+	var tokenModelID, imageModelID, cacheModelID, channelID string
 	if err := h.db.QueryRow(ctx, `
 		INSERT INTO models (public_name, type, model_group, billing_mode, input_price_per_1k, output_price_per_1k, price_per_call, rate_multiplier, status)
 		VALUES ('public-token', 'chat', 'test', 'token', 0.100000, 0.200000, 0, 1.300, 'enabled')
 		RETURNING id::text
 	`).Scan(&tokenModelID); err != nil {
 		t.Fatalf("seed token model: %v", err)
+	}
+	if err := h.db.QueryRow(ctx, `
+		INSERT INTO models (
+			public_name, type, model_group, billing_mode,
+			input_price_per_1k, output_price_per_1k, cache_creation_price_per_1k, cache_read_price_per_1k,
+			price_per_call, rate_multiplier, status
+		)
+		VALUES ('public-cache', 'chat', 'test', 'token', 0.100000, 0.200000, 0.050000, 0.010000, 0, 1.300, 'enabled')
+		RETURNING id::text
+	`).Scan(&cacheModelID); err != nil {
+		t.Fatalf("seed cache model: %v", err)
 	}
 	if err := h.db.QueryRow(ctx, `
 		INSERT INTO models (public_name, type, model_group, billing_mode, input_price_per_1k, output_price_per_1k, price_per_call, rate_multiplier, status)
@@ -251,7 +321,7 @@ func (h *billingHarness) seed(t *testing.T, initialBalance float64, concurrencyL
 	`, h.upstream.URL, base64.StdEncoding.EncodeToString([]byte("upstream-key"))).Scan(&channelID); err != nil {
 		t.Fatalf("seed channel: %v", err)
 	}
-	for _, pair := range []struct{ modelID, upstream string }{{tokenModelID, "upstream-token"}, {imageModelID, "upstream-image"}} {
+	for _, pair := range []struct{ modelID, upstream string }{{tokenModelID, "upstream-token"}, {cacheModelID, "upstream-cache"}, {imageModelID, "upstream-image"}} {
 		if _, err := h.db.Exec(ctx, `
 			INSERT INTO channel_models (channel_id, model_id, upstream_model_name, status)
 			VALUES ($1, $2, $3, 'enabled')
@@ -270,6 +340,68 @@ func (h *billingHarness) chat(t *testing.T, key, model string, n int) (int, stri
 	rec := httptest.NewRecorder()
 	h.handler.ServeHTTP(rec, req)
 	return rec.Code, rec.Body.String()
+}
+
+func (h *billingHarness) streamChat(t *testing.T, key, model string) (int, string) {
+	t.Helper()
+	body := fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"hello"}],"max_tokens":200,"stream":true}`, model)
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.handler.ServeHTTP(rec, req)
+	return rec.Code, rec.Body.String()
+}
+
+func mustJSON(t *testing.T, value any) string {
+	t.Helper()
+	body, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal json: %v", err)
+	}
+	return string(body)
+}
+
+func assertGatewayRequestUsage(t *testing.T, db *pgxpool.Pool, userID, publicName string, cacheCreation, cacheRead int, upstreamModelName string) {
+	t.Helper()
+	var gotCreation, gotRead int
+	var gotUpstream string
+	err := db.QueryRow(context.Background(), `
+		SELECT gr.cache_creation_tokens, gr.cache_read_tokens, COALESCE(gr.upstream_model_name, '')
+		FROM gateway_requests gr
+		JOIN models m ON m.id = gr.model_id
+		WHERE gr.user_id=$1 AND m.public_name=$2
+		ORDER BY gr.created_at DESC
+		LIMIT 1
+	`, userID, publicName).Scan(&gotCreation, &gotRead, &gotUpstream)
+	if err != nil {
+		t.Fatalf("query gateway usage: %v", err)
+	}
+	if gotCreation != cacheCreation || gotRead != cacheRead || gotUpstream != upstreamModelName {
+		t.Fatalf("gateway usage=(cache_creation=%d cache_read=%d upstream=%q), want (%d,%d,%q)", gotCreation, gotRead, gotUpstream, cacheCreation, cacheRead, upstreamModelName)
+	}
+	t.Logf("gateway usage %s: cache_creation=%d cache_read=%d upstream_model=%s", publicName, gotCreation, gotRead, gotUpstream)
+}
+
+func assertStreamObservability(t *testing.T, db *pgxpool.Pool, userID, publicName, upstreamModelName string) {
+	t.Helper()
+	var firstTokenMS int
+	var gotUpstream string
+	err := db.QueryRow(context.Background(), `
+		SELECT gr.first_token_ms, COALESCE(gr.upstream_model_name, '')
+		FROM gateway_requests gr
+		JOIN models m ON m.id = gr.model_id
+		WHERE gr.user_id=$1 AND m.public_name=$2
+		ORDER BY gr.created_at DESC
+		LIMIT 1
+	`, userID, publicName).Scan(&firstTokenMS, &gotUpstream)
+	if err != nil {
+		t.Fatalf("query stream observability: %v", err)
+	}
+	if firstTokenMS <= 0 || gotUpstream != upstreamModelName {
+		t.Fatalf("stream observability=(first_token_ms=%d upstream=%q), want first_token_ms>0 upstream=%q", firstTokenMS, gotUpstream, upstreamModelName)
+	}
+	t.Logf("stream observability %s: first_token_ms=%d upstream_model=%s", publicName, firstTokenMS, gotUpstream)
 }
 
 func assertMoneyPath(t *testing.T, db *pgxpool.Pool, userID, publicName, baseCost, multiplier, charge string) {

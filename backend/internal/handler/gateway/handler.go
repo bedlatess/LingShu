@@ -74,7 +74,7 @@ func (h Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 		defer resp.Body.Close()
 		if resp.StatusCode >= 400 {
 			responseBody, _ := io.ReadAll(resp.Body)
-			h.gateway.FinalizeStream(r.Context(), principalDTO, model, channel, body, responseBody, estimate, resp.StatusCode, clientIP(r), start)
+			h.gateway.FinalizeStream(r.Context(), principalDTO, model, channel, body, responseBody, estimate, resp.StatusCode, clientIP(r), start, 0)
 			writeGatewayBody(w, resp.StatusCode, responseBody)
 			return
 		}
@@ -83,8 +83,8 @@ func (h Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/event-stream")
 		}
 		w.WriteHeader(resp.StatusCode)
-		captured, _ := service.CopyAndCapture(w, resp.Body)
-		h.gateway.FinalizeStream(r.Context(), principalDTO, model, channel, body, captured, estimate, resp.StatusCode, clientIP(r), start)
+		captured, firstTokenMS, _ := service.CopyAndCaptureWithFirstByte(w, resp.Body, start)
+		h.gateway.FinalizeStream(r.Context(), principalDTO, model, channel, body, captured, estimate, resp.StatusCode, clientIP(r), start, firstTokenMS)
 		return
 	}
 	status, responseBody, err := h.gateway.Chat(r.Context(), principalDTO, body, clientIP(r), sessionID(r))

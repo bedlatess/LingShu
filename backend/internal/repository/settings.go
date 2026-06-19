@@ -33,6 +33,23 @@ func (r SettingsRepository) List(ctx context.Context) ([]Setting, error) {
 	return items, err
 }
 
+func (r SettingsRepository) GetMap(ctx context.Context, keys ...string) (map[string]string, error) {
+	rows, err := r.db.Query(ctx, `SELECT key, value FROM system_settings WHERE key = ANY($1)`, keys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			return nil, err
+		}
+		out[key] = value
+	}
+	return out, rows.Err()
+}
+
 func (r SettingsRepository) ListPaged(ctx context.Context, limit, offset int) ([]Setting, int, error) {
 	var total int
 	if err := r.db.QueryRow(ctx, `SELECT count(*)::int FROM system_settings`).Scan(&total); err != nil {

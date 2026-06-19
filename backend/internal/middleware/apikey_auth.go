@@ -29,6 +29,10 @@ func APIKeyAuth(keys repository.APIKeyRepository) func(http.Handler) http.Handle
 				httpx.ErrorJSON(w, http.StatusUnauthorized, "invalid_api_key", "invalid api key", "invalid_api_key")
 				return
 			}
+			if !endpointAllowed(r.URL.Path, principal.AllowedEndpoints) {
+				httpx.ErrorJSON(w, http.StatusForbidden, "endpoint_not_allowed", "api key is not allowed to access this endpoint", "endpoint_not_allowed")
+				return
+			}
 			ctx := context.WithValue(r.Context(), gatewayContextKey, principal)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -38,4 +42,24 @@ func APIKeyAuth(keys repository.APIKeyRepository) func(http.Handler) http.Handle
 func CurrentGatewayPrincipal(ctx context.Context) (repository.APIKeyPrincipal, bool) {
 	principal, ok := ctx.Value(gatewayContextKey).(repository.APIKeyPrincipal)
 	return principal, ok
+}
+
+func endpointAllowed(path string, allowed []string) bool {
+	if len(allowed) == 0 {
+		return true
+	}
+	path = strings.TrimRight(path, "/")
+	if path == "" {
+		path = "/"
+	}
+	for _, endpoint := range allowed {
+		candidate := strings.TrimRight(endpoint, "/")
+		if candidate == "" {
+			candidate = "/"
+		}
+		if candidate == path {
+			return true
+		}
+	}
+	return false
 }

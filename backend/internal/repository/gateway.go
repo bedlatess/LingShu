@@ -12,14 +12,16 @@ import (
 var ErrSettlementInsufficientBalance = errors.New("settlement insufficient balance")
 
 type GatewayModel struct {
-	ID               string `json:"-"`
-	PublicName       string `json:"id"`
-	Type             string `json:"-"`
-	BillingMode      string `json:"-"`
-	InputPricePer1K  string `json:"-"`
-	OutputPricePer1K string `json:"-"`
-	PricePerCall     string `json:"-"`
-	RateMultiplier   string `json:"-"`
+	ID                      string `json:"-"`
+	PublicName              string `json:"id"`
+	Type                    string `json:"-"`
+	BillingMode             string `json:"-"`
+	InputPricePer1K         string `json:"-"`
+	OutputPricePer1K        string `json:"-"`
+	CacheCreationPricePer1K string `json:"-"`
+	CacheReadPricePer1K     string `json:"-"`
+	PricePerCall            string `json:"-"`
+	RateMultiplier          string `json:"-"`
 }
 
 type GatewayChannel struct {
@@ -36,26 +38,31 @@ type GatewayChannel struct {
 }
 
 type GatewayRequestRecord struct {
-	RequestID        string
-	UserID           string
-	APIKeyID         string
-	ModelID          string
-	ChannelID        string
-	Endpoint         string
-	Status           string
-	HTTPStatus       int
-	PromptTokens     int
-	CompletionTokens int
-	TotalTokens      int
-	BaseCost         string
-	RateMultiplier   string
-	Charge           string
-	IsStream         bool
-	IsEstimated      bool
-	LatencyMS        int
-	ErrorCode        string
-	ErrorMessage     string
-	ClientIP         string
+	RequestID           string
+	UserID              string
+	APIKeyID            string
+	ModelID             string
+	ChannelID           string
+	Endpoint            string
+	Status              string
+	HTTPStatus          int
+	PromptTokens        int
+	CompletionTokens    int
+	TotalTokens         int
+	CacheCreationTokens int
+	CacheReadTokens     int
+	ImageOutputTokens   int
+	BaseCost            string
+	RateMultiplier      string
+	Charge              string
+	IsStream            bool
+	IsEstimated         bool
+	LatencyMS           int
+	FirstTokenMS        int
+	UpstreamModelName   string
+	ErrorCode           string
+	ErrorMessage        string
+	ClientIP            string
 }
 
 type GatewayRepository struct {
@@ -69,7 +76,9 @@ func NewGatewayRepository(db *pgxpool.Pool) GatewayRepository {
 func (r GatewayRepository) ListEnabledModels(ctx context.Context) ([]GatewayModel, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id::text, public_name, type, billing_mode,
-		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text, rate_multiplier::text
+		       input_price_per_1k::text, output_price_per_1k::text,
+		       cache_creation_price_per_1k::text, cache_read_price_per_1k::text,
+		       price_per_call::text, rate_multiplier::text
 		FROM models
 		WHERE status='enabled'
 		  AND deleted_at IS NULL
@@ -88,7 +97,7 @@ func (r GatewayRepository) ListEnabledModels(ctx context.Context) ([]GatewayMode
 	items := []GatewayModel{}
 	for rows.Next() {
 		var item GatewayModel
-		if err := rows.Scan(&item.ID, &item.PublicName, &item.Type, &item.BillingMode, &item.InputPricePer1K, &item.OutputPricePer1K, &item.PricePerCall, &item.RateMultiplier); err != nil {
+		if err := rows.Scan(&item.ID, &item.PublicName, &item.Type, &item.BillingMode, &item.InputPricePer1K, &item.OutputPricePer1K, &item.CacheCreationPricePer1K, &item.CacheReadPricePer1K, &item.PricePerCall, &item.RateMultiplier); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -100,10 +109,12 @@ func (r GatewayRepository) FindEnabledModel(ctx context.Context, publicName stri
 	var item GatewayModel
 	err := r.db.QueryRow(ctx, `
 		SELECT id::text, public_name, type, billing_mode,
-		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text, rate_multiplier::text
+		       input_price_per_1k::text, output_price_per_1k::text,
+		       cache_creation_price_per_1k::text, cache_read_price_per_1k::text,
+		       price_per_call::text, rate_multiplier::text
 		FROM models
 		WHERE public_name=$1 AND status='enabled' AND deleted_at IS NULL
-	`, publicName).Scan(&item.ID, &item.PublicName, &item.Type, &item.BillingMode, &item.InputPricePer1K, &item.OutputPricePer1K, &item.PricePerCall, &item.RateMultiplier)
+	`, publicName).Scan(&item.ID, &item.PublicName, &item.Type, &item.BillingMode, &item.InputPricePer1K, &item.OutputPricePer1K, &item.CacheCreationPricePer1K, &item.CacheReadPricePer1K, &item.PricePerCall, &item.RateMultiplier)
 	return item, err
 }
 
@@ -171,14 +182,16 @@ func (r GatewayRepository) RecordAndCharge(ctx context.Context, record GatewayRe
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO gateway_requests (
 			request_id, user_id, api_key_id, model_id, channel_id, endpoint, status, http_status,
-			prompt_tokens, completion_tokens, total_tokens, base_cost, rate_multiplier, charge,
-			is_stream, is_estimated, latency_ms, error_code, error_message, client_ip
+			prompt_tokens, completion_tokens, total_tokens, cache_creation_tokens, cache_read_tokens, image_output_tokens,
+			base_cost, rate_multiplier, charge, is_stream, is_estimated, latency_ms, first_token_ms,
+			upstream_model_name, error_code, error_message, client_ip
 		)
-		VALUES ($1,$2,$3,$4,NULLIF($5,'')::uuid,$6,$7,$8,$9,$10,$11,$12::numeric,$13::numeric,$14::numeric,$15,$16,$17,NULLIF($18,''),NULLIF($19,''),NULLIF($20,'')::inet)
+		VALUES ($1,$2,$3,$4,NULLIF($5,'')::uuid,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::numeric,$16::numeric,$17::numeric,$18,$19,$20,$21,NULLIF($22,''),NULLIF($23,''),NULLIF($24,''),NULLIF($25,'')::inet)
 		RETURNING id::text
 	`, record.RequestID, record.UserID, record.APIKeyID, record.ModelID, record.ChannelID, record.Endpoint, record.Status, record.HTTPStatus,
-		record.PromptTokens, record.CompletionTokens, record.TotalTokens, record.BaseCost, record.RateMultiplier, record.Charge,
-		record.IsStream, record.IsEstimated, record.LatencyMS, record.ErrorCode, record.ErrorMessage, record.ClientIP).Scan(&requestUUID); err != nil {
+		record.PromptTokens, record.CompletionTokens, record.TotalTokens, record.CacheCreationTokens, record.CacheReadTokens, record.ImageOutputTokens,
+		record.BaseCost, record.RateMultiplier, record.Charge, record.IsStream, record.IsEstimated, record.LatencyMS, record.FirstTokenMS,
+		record.UpstreamModelName, record.ErrorCode, record.ErrorMessage, record.ClientIP).Scan(&requestUUID); err != nil {
 		return err
 	}
 
@@ -220,14 +233,16 @@ func (r GatewayRepository) RecordOnly(ctx context.Context, record GatewayRequest
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO gateway_requests (
 			request_id, user_id, api_key_id, model_id, channel_id, endpoint, status, http_status,
-			prompt_tokens, completion_tokens, total_tokens, base_cost, rate_multiplier, charge,
-			is_stream, is_estimated, latency_ms, error_code, error_message, client_ip
+			prompt_tokens, completion_tokens, total_tokens, cache_creation_tokens, cache_read_tokens, image_output_tokens,
+			base_cost, rate_multiplier, charge, is_stream, is_estimated, latency_ms, first_token_ms,
+			upstream_model_name, error_code, error_message, client_ip
 		)
-		VALUES ($1,$2,$3,$4,NULLIF($5,'')::uuid,$6,$7,$8,$9,$10,$11,$12::numeric,$13::numeric,$14::numeric,$15,$16,$17,NULLIF($18,''),NULLIF($19,''),NULLIF($20,'')::inet)
+		VALUES ($1,$2,$3,$4,NULLIF($5,'')::uuid,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::numeric,$16::numeric,$17::numeric,$18,$19,$20,$21,NULLIF($22,''),NULLIF($23,''),NULLIF($24,''),NULLIF($25,'')::inet)
 		ON CONFLICT (request_id) DO NOTHING
 	`, record.RequestID, record.UserID, record.APIKeyID, record.ModelID, record.ChannelID, record.Endpoint, record.Status, record.HTTPStatus,
-		record.PromptTokens, record.CompletionTokens, record.TotalTokens, record.BaseCost, record.RateMultiplier, record.Charge,
-		record.IsStream, record.IsEstimated, record.LatencyMS, record.ErrorCode, record.ErrorMessage, record.ClientIP)
+		record.PromptTokens, record.CompletionTokens, record.TotalTokens, record.CacheCreationTokens, record.CacheReadTokens, record.ImageOutputTokens,
+		record.BaseCost, record.RateMultiplier, record.Charge, record.IsStream, record.IsEstimated, record.LatencyMS, record.FirstTokenMS,
+		record.UpstreamModelName, record.ErrorCode, record.ErrorMessage, record.ClientIP)
 	return err
 }
 

@@ -10,32 +10,36 @@ import (
 )
 
 type Model struct {
-	ID               string    `json:"id"`
-	PublicName       string    `json:"public_name"`
-	Type             string    `json:"type"`
-	Group            string    `json:"group"`
-	BillingMode      string    `json:"billing_mode"`
-	InputPricePer1K  string    `json:"input_price_per_1k"`
-	OutputPricePer1K string    `json:"output_price_per_1k"`
-	PricePerCall     string    `json:"price_per_call"`
-	RateMultiplier   string    `json:"rate_multiplier"`
-	Status           string    `json:"status"`
-	SortOrder        int       `json:"sort_order"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	ID                      string    `json:"id"`
+	PublicName              string    `json:"public_name"`
+	Type                    string    `json:"type"`
+	Group                   string    `json:"group"`
+	BillingMode             string    `json:"billing_mode"`
+	InputPricePer1K         string    `json:"input_price_per_1k"`
+	OutputPricePer1K        string    `json:"output_price_per_1k"`
+	CacheCreationPricePer1K string    `json:"cache_creation_price_per_1k"`
+	CacheReadPricePer1K     string    `json:"cache_read_price_per_1k"`
+	PricePerCall            string    `json:"price_per_call"`
+	RateMultiplier          string    `json:"rate_multiplier"`
+	Status                  string    `json:"status"`
+	SortOrder               int       `json:"sort_order"`
+	CreatedAt               time.Time `json:"created_at"`
+	UpdatedAt               time.Time `json:"updated_at"`
 }
 
 type ModelInput struct {
-	PublicName       string `json:"public_name"`
-	Type             string `json:"type"`
-	Group            string `json:"group"`
-	BillingMode      string `json:"billing_mode"`
-	InputPricePer1K  string `json:"input_price_per_1k"`
-	OutputPricePer1K string `json:"output_price_per_1k"`
-	PricePerCall     string `json:"price_per_call"`
-	RateMultiplier   string `json:"rate_multiplier"`
-	Status           string `json:"status"`
-	SortOrder        int    `json:"sort_order"`
+	PublicName              string `json:"public_name"`
+	Type                    string `json:"type"`
+	Group                   string `json:"group"`
+	BillingMode             string `json:"billing_mode"`
+	InputPricePer1K         string `json:"input_price_per_1k"`
+	OutputPricePer1K        string `json:"output_price_per_1k"`
+	CacheCreationPricePer1K string `json:"cache_creation_price_per_1k"`
+	CacheReadPricePer1K     string `json:"cache_read_price_per_1k"`
+	PricePerCall            string `json:"price_per_call"`
+	RateMultiplier          string `json:"rate_multiplier"`
+	Status                  string `json:"status"`
+	SortOrder               int    `json:"sort_order"`
 }
 
 type ModelRepository struct {
@@ -81,6 +85,7 @@ func (r ModelRepository) ListVisible(ctx context.Context) ([]Model, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id::text, public_name, type, model_group, billing_mode,
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
+		       cache_creation_price_per_1k::text, cache_read_price_per_1k::text,
 		       rate_multiplier::text, status, sort_order, created_at, updated_at
 		FROM models
 		WHERE status='enabled'
@@ -116,6 +121,7 @@ func (r ModelRepository) ListPaged(ctx context.Context, limit, offset int) ([]Mo
 	rows, err := r.db.Query(ctx, `
 		SELECT id::text, public_name, type, model_group, billing_mode,
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
+		       cache_creation_price_per_1k::text, cache_read_price_per_1k::text,
 		       rate_multiplier::text, status, sort_order, created_at, updated_at
 		FROM models
 		WHERE deleted_at IS NULL
@@ -142,6 +148,7 @@ func (r ModelRepository) FindByID(ctx context.Context, id string) (Model, error)
 	row := r.db.QueryRow(ctx, `
 		SELECT id::text, public_name, type, model_group, billing_mode,
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
+		       cache_creation_price_per_1k::text, cache_read_price_per_1k::text,
 		       rate_multiplier::text, status, sort_order, created_at, updated_at
 		FROM models
 		WHERE id=$1 AND deleted_at IS NULL
@@ -201,13 +208,15 @@ func (r ModelRepository) Create(ctx context.Context, input ModelInput) (Model, e
 		INSERT INTO models (
 			public_name, type, model_group, billing_mode,
 			input_price_per_1k, output_price_per_1k, price_per_call,
+			cache_creation_price_per_1k, cache_read_price_per_1k,
 			rate_multiplier, status, sort_order
 		)
-		VALUES ($1,$2,$3,$4,$5::numeric,$6::numeric,$7::numeric,$8::numeric,$9,$10)
+		VALUES ($1,$2,$3,$4,$5::numeric,$6::numeric,$7::numeric,$8::numeric,$9::numeric,$10::numeric,$11,$12)
 		RETURNING id::text, public_name, type, model_group, billing_mode,
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
+		       cache_creation_price_per_1k::text, cache_read_price_per_1k::text,
 		       rate_multiplier::text, status, sort_order, created_at, updated_at
-	`, input.PublicName, input.Type, input.Group, input.BillingMode, input.InputPricePer1K, input.OutputPricePer1K, input.PricePerCall, input.RateMultiplier, input.Status, input.SortOrder)
+	`, input.PublicName, input.Type, input.Group, input.BillingMode, input.InputPricePer1K, input.OutputPricePer1K, input.PricePerCall, input.CacheCreationPricePer1K, input.CacheReadPricePer1K, input.RateMultiplier, input.Status, input.SortOrder)
 	return scanModel(row)
 }
 
@@ -216,12 +225,14 @@ func (r ModelRepository) Update(ctx context.Context, id string, input ModelInput
 		UPDATE models
 		SET public_name=$2, type=$3, model_group=$4, billing_mode=$5,
 		    input_price_per_1k=$6::numeric, output_price_per_1k=$7::numeric, price_per_call=$8::numeric,
-		    rate_multiplier=$9::numeric, status=$10, sort_order=$11, updated_at=now()
+		    cache_creation_price_per_1k=$9::numeric, cache_read_price_per_1k=$10::numeric,
+		    rate_multiplier=$11::numeric, status=$12, sort_order=$13, updated_at=now()
 		WHERE id=$1 AND deleted_at IS NULL
 		RETURNING id::text, public_name, type, model_group, billing_mode,
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
+		       cache_creation_price_per_1k::text, cache_read_price_per_1k::text,
 		       rate_multiplier::text, status, sort_order, created_at, updated_at
-	`, id, input.PublicName, input.Type, input.Group, input.BillingMode, input.InputPricePer1K, input.OutputPricePer1K, input.PricePerCall, input.RateMultiplier, input.Status, input.SortOrder)
+	`, id, input.PublicName, input.Type, input.Group, input.BillingMode, input.InputPricePer1K, input.OutputPricePer1K, input.PricePerCall, input.CacheCreationPricePer1K, input.CacheReadPricePer1K, input.RateMultiplier, input.Status, input.SortOrder)
 	return scanModel(row)
 }
 
@@ -262,6 +273,8 @@ func scanModel(row modelScanner) (Model, error) {
 		&item.InputPricePer1K,
 		&item.OutputPricePer1K,
 		&item.PricePerCall,
+		&item.CacheCreationPricePer1K,
+		&item.CacheReadPricePer1K,
 		&item.RateMultiplier,
 		&item.Status,
 		&item.SortOrder,

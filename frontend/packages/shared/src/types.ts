@@ -29,6 +29,7 @@ export interface APIKey {
   mask: string;
   name: string;
   status: string;
+  allowed_endpoints: string[];
   created_at: string;
 }
 
@@ -44,6 +45,8 @@ export interface ModelConfig {
   billing_mode: string;
   input_price_per_1k: string;
   output_price_per_1k: string;
+  cache_creation_price_per_1k: string;
+  cache_read_price_per_1k: string;
   price_per_call: string;
   rate_multiplier: string;
   status: string;
@@ -295,6 +298,56 @@ export interface AdminDashboard {
   total_requests?: number;
 }
 
+export interface OpsSummary {
+  rpm: number;
+  tpm: number;
+  requests_24h: number;
+  error_rate_24h: string;
+  p50_latency_ms: number;
+  p95_latency_ms: number;
+  avg_first_token_ms: number;
+  channel_switches: number;
+}
+
+export interface OpsTrendPoint {
+  bucket: string;
+  requests: number;
+  failures: number;
+  total_tokens: number;
+  charge: string;
+  avg_latency_ms: number;
+  p95_latency_ms: number;
+}
+
+export interface OpsChannelHealth {
+  id: string;
+  name: string;
+  provider_type: string;
+  status: string;
+  health: string;
+  fail_count: number;
+  last_latency_ms: number;
+  last_success_at?: string;
+  last_error_at?: string;
+  last_error_message: string;
+  requests_24h: number;
+  failures_24h: number;
+  error_rate_24h: string;
+  avg_latency_ms: number;
+}
+
+export interface OpsStatusBucket {
+  status: string;
+  count: number;
+}
+
+export interface OpsDashboard {
+  summary: OpsSummary;
+  trends: OpsTrendPoint[];
+  channels: OpsChannelHealth[];
+  statuses: OpsStatusBucket[];
+}
+
 export interface LoginResponse {
   token: string;
   user: User;
@@ -315,7 +368,17 @@ export interface PublicModel {
 export interface PublicSiteInfo {
   site_name: string;
   registration_enabled: boolean;
+  registration_mode: string;
   contact_info: string;
+  contact_email: string;
+  site_logo_url: string;
+  site_icp: string;
+  site_police_beian: string;
+  tos_url: string;
+  privacy_url: string;
+  brand_primary_color: string;
+  captcha_enabled: boolean;
+  captcha_provider: string;
   login_url: string;
 }
 

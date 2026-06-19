@@ -99,8 +99,11 @@ type openAIChatResponse struct {
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
 	Usage struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
+		PromptTokens        int `json:"prompt_tokens"`
+		CompletionTokens    int `json:"completion_tokens"`
+		PromptTokensDetails struct {
+			CachedTokens int `json:"cached_tokens"`
+		} `json:"prompt_tokens_details"`
 	} `json:"usage"`
 }
 
@@ -129,8 +132,9 @@ func OpenAIToAnthropicResponse(openAIBody []byte) ([]byte, error) {
 		"stop_reason":   openAIFinishToAnthropic(finish),
 		"stop_sequence": nil,
 		"usage": map[string]any{
-			"input_tokens":  in.Usage.PromptTokens,
-			"output_tokens": in.Usage.CompletionTokens,
+			"input_tokens":            in.Usage.PromptTokens,
+			"output_tokens":           in.Usage.CompletionTokens,
+			"cache_read_input_tokens": in.Usage.PromptTokensDetails.CachedTokens,
 		},
 	}
 	return json.Marshal(out)
@@ -157,24 +161,34 @@ type openAIStreamChunk struct {
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
 	Usage *struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
+		PromptTokens        int `json:"prompt_tokens"`
+		CompletionTokens    int `json:"completion_tokens"`
+		PromptTokensDetails struct {
+			CachedTokens int `json:"cached_tokens"`
+		} `json:"prompt_tokens_details"`
 	} `json:"usage"`
 }
 
 // StreamOpenAIToAnthropic 边读 OpenAI SSE 边转成 Anthropic SSE 事件写给客户端，
 // 同时通过 TeeReader 把 OpenAI 原始流完整镜像到返回值，供 FinalizeStream 解析 usage 扣费。
 // 事件序列：message_start → content_block_start → content_block_delta* →
-//   content_block_stop → message_delta(stop_reason+usage) → message_stop。
+//
+//	content_block_stop → message_delta(stop_reason+usage) → message_stop。
 func StreamOpenAIToAnthropic(w io.Writer, flush func(), openAISSE io.Reader, model string) ([]byte, error) {
+	return StreamOpenAIToAnthropicWithFirstChunk(w, flush, openAISSE, model, nil)
+}
+
+func StreamOpenAIToAnthropicWithFirstChunk(w io.Writer, flush func(), openAISSE io.Reader, model string, onFirstChunk func()) ([]byte, error) {
 	var captured bytes.Buffer
 	tee := io.TeeReader(openAISSE, &captured)
 
 	messageID := newAnthropicMessageID()
 	started := false
+	firstChunkSeen := false
 	stopReason := "end_turn"
 	outputTokens := 0
 	inputTokens := 0
+	cacheReadTokens := 0
 
 	emitStart := func() error {
 		if started {
@@ -218,6 +232,9 @@ func StreamOpenAIToAnthropic(w io.Writer, flush func(), openAISSE io.Reader, mod
 			if chunk.Usage.CompletionTokens > 0 {
 				outputTokens = chunk.Usage.CompletionTokens
 			}
+			if chunk.Usage.PromptTokensDetails.CachedTokens > 0 {
+				cacheReadTokens = chunk.Usage.PromptTokensDetails.CachedTokens
+			}
 		}
 		if len(chunk.Choices) == 0 {
 			return nil
@@ -227,6 +244,12 @@ func StreamOpenAIToAnthropic(w io.Writer, flush func(), openAISSE io.Reader, mod
 			stopReason = openAIFinishToAnthropic(choice.FinishReason)
 		}
 		if choice.Delta.Content != "" {
+			if !firstChunkSeen {
+				firstChunkSeen = true
+				if onFirstChunk != nil {
+					onFirstChunk()
+				}
+			}
 			if emitErr := emitStart(); emitErr != nil {
 				return emitErr
 			}
@@ -255,7 +278,7 @@ func StreamOpenAIToAnthropic(w io.Writer, flush func(), openAISSE io.Reader, mod
 	if err := writeAnthropicSSEEvent(w, flush, "message_delta", map[string]any{
 		"type":  "message_delta",
 		"delta": map[string]any{"stop_reason": stopReason, "stop_sequence": nil},
-		"usage": map[string]any{"input_tokens": inputTokens, "output_tokens": outputTokens},
+		"usage": map[string]any{"input_tokens": inputTokens, "output_tokens": outputTokens, "cache_read_input_tokens": cacheReadTokens},
 	}); err != nil {
 		return captured.Bytes(), err
 	}

@@ -19,9 +19,12 @@ type ChatResponse struct {
 }
 
 type Usage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
+	PromptTokens        int `json:"prompt_tokens"`
+	CompletionTokens    int `json:"completion_tokens"`
+	TotalTokens         int `json:"total_tokens"`
+	CacheCreationTokens int `json:"cache_creation_tokens,omitempty"`
+	CacheReadTokens     int `json:"cache_read_tokens,omitempty"`
+	ImageOutputTokens   int `json:"image_output_tokens,omitempty"`
 }
 
 type OpenAIAdapter struct{}
@@ -246,12 +249,44 @@ func PrepareEmbeddingsBody(rawBody []byte, upstreamModelName string) []byte {
 	return rawBody
 }
 
+type rawUsage struct {
+	PromptTokens             int `json:"prompt_tokens"`
+	CompletionTokens         int `json:"completion_tokens"`
+	TotalTokens              int `json:"total_tokens"`
+	CacheCreationTokens      int `json:"cache_creation_tokens"`
+	CacheReadTokens          int `json:"cache_read_tokens"`
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+	ImageOutputTokens        int `json:"image_output_tokens"`
+	PromptTokensDetails      struct {
+		CachedTokens int `json:"cached_tokens"`
+	} `json:"prompt_tokens_details"`
+	CompletionTokensDetails struct {
+		ImageTokens int `json:"image_tokens"`
+	} `json:"completion_tokens_details"`
+}
+
+func (u rawUsage) toUsage() Usage {
+	out := Usage{
+		PromptTokens:        u.PromptTokens,
+		CompletionTokens:    u.CompletionTokens,
+		TotalTokens:         u.TotalTokens,
+		CacheCreationTokens: u.CacheCreationTokens + u.CacheCreationInputTokens,
+		CacheReadTokens:     u.CacheReadTokens + u.CacheReadInputTokens + u.PromptTokensDetails.CachedTokens,
+		ImageOutputTokens:   u.ImageOutputTokens + u.CompletionTokensDetails.ImageTokens,
+	}
+	if out.TotalTokens == 0 {
+		out.TotalTokens = out.PromptTokens + out.CompletionTokens
+	}
+	return out
+}
+
 func extractUsage(body []byte) Usage {
 	var parsed struct {
-		Usage Usage `json:"usage"`
+		Usage rawUsage `json:"usage"`
 	}
 	_ = json.Unmarshal(body, &parsed)
-	return parsed.Usage
+	return parsed.Usage.toUsage()
 }
 
 // ExtractStreamUsage 从已捕获的 SSE 响应里取上游回灌的真实 usage。
@@ -271,15 +306,11 @@ func ExtractStreamUsage(raw string) Usage {
 		if data == "" || data == "[DONE]" {
 			continue
 		}
-		var parsed struct {
-			Usage Usage `json:"usage"`
-		}
-		if err := json.Unmarshal([]byte(data), &parsed); err != nil {
+		usage := extractUsage([]byte(data))
+		if usage.TotalTokens == 0 {
 			continue
 		}
-		if parsed.Usage.TotalTokens > 0 {
-			found = parsed.Usage
-		}
+		found = usage
 	}
 	return found
 }

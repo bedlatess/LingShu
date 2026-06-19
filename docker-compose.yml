@@ -1,4 +1,4 @@
-# 灵枢生产部署（全栈）：postgres + redis + 后端网关 + 前端(Nginx 托管 user/admin)
+# 灵枢生产部署（全栈）：postgres + redis + 后端网关 + 前端(Nginx 托管统一 app)
 # 后端启动时自动执行 migrations（internal/bootstrap.Migrate），无需单独迁移步骤。
 #
 # 上线前务必：复制 .env.example 为 .env，并改掉 JWT_SECRET / KEY_ENCRYPTION_SECRET /
@@ -31,8 +31,8 @@ services:
   web:
     build: ./frontend
     ports:
-      - "19080:80"     # 用户端（公开门面），冷门宿主端口避免占用冲突
-      - "19081:8081"   # 管理端（内部使用，建议加内网/IP 白名单）
+      - "19080:80"     # 统一前端 app（公开门面 + /admin/*）
+      - "19081:8081"   # 兼容旧管理入口，同样托管统一 app
     depends_on:
       app:
         condition: service_healthy

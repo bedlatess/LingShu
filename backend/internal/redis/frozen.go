@@ -79,3 +79,48 @@ func (s FrozenStore) SetStickyChannel(ctx context.Context, key, channelID string
 	}
 	return s.client.Set(ctx, "sticky:"+key, channelID, ttl).Err()
 }
+
+func (s FrozenStore) IsChannelCooling(ctx context.Context, channelID string) (bool, error) {
+	if channelID == "" {
+		return false, nil
+	}
+	count, err := s.client.Exists(ctx, "channel_cooldown:"+channelID).Result()
+	return count > 0, err
+}
+
+func (s FrozenStore) SetChannelCooldown(ctx context.Context, channelID, reason string, ttl time.Duration) error {
+	if channelID == "" || ttl <= 0 {
+		return nil
+	}
+	return s.client.Set(ctx, "channel_cooldown:"+channelID, reason, ttl).Err()
+}
+
+func (s FrozenStore) IsChannelRateLimited(ctx context.Context, channelID string) (bool, error) {
+	if channelID == "" {
+		return false, nil
+	}
+	count, err := s.client.Exists(ctx, "channel_rate_limited:"+channelID).Result()
+	return count > 0, err
+}
+
+func (s FrozenStore) SetChannelRateLimited(ctx context.Context, channelID, reason string, ttl time.Duration) error {
+	if channelID == "" || ttl <= 0 {
+		return nil
+	}
+	return s.client.Set(ctx, "channel_rate_limited:"+channelID, reason, ttl).Err()
+}
+
+func (s FrozenStore) IsChannelOverloaded(ctx context.Context, channelID string) (bool, error) {
+	if channelID == "" {
+		return false, nil
+	}
+	count, err := s.client.Exists(ctx, "channel_overload:"+channelID).Result()
+	return count > 0, err
+}
+
+func (s FrozenStore) SetChannelOverloaded(ctx context.Context, channelID, reason string, ttl time.Duration) error {
+	if channelID == "" || ttl <= 0 {
+		return nil
+	}
+	return s.client.Set(ctx, "channel_overload:"+channelID, reason, ttl).Err()
+}

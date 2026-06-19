@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"lingshu/backend/internal/config"
 	"lingshu/backend/internal/pkg/apikey"
@@ -16,8 +17,9 @@ type APIKeyService struct {
 }
 
 type CreateAPIKeyInput struct {
-	UserID string `json:"user_id"`
-	Name   string `json:"name"`
+	UserID           string   `json:"user_id"`
+	Name             string   `json:"name"`
+	AllowedEndpoints []string `json:"allowed_endpoints"`
 }
 
 type CreatedAPIKey struct {
@@ -49,16 +51,21 @@ func (s APIKeyService) Create(ctx context.Context, actorID string, input CreateA
 	if input.UserID == "" || input.Name == "" {
 		return CreatedAPIKey{}, errors.New("user_id and name are required")
 	}
+	endpoints, err := NormalizeAllowedEndpoints(input.AllowedEndpoints)
+	if err != nil {
+		return CreatedAPIKey{}, err
+	}
 	plain, err := apikey.Generate(s.cfg.APIKeyPrefix)
 	if err != nil {
 		return CreatedAPIKey{}, err
 	}
 	created, err := s.keys.Create(ctx, repository.CreateAPIKeyParams{
-		UserID:    input.UserID,
-		KeyPrefix: apikey.Prefix(plain),
-		KeyHash:   apikey.Hash(plain),
-		Mask:      apikey.Mask(plain),
-		Name:      input.Name,
+		UserID:           input.UserID,
+		KeyPrefix:        apikey.Prefix(plain),
+		KeyHash:          apikey.Hash(plain),
+		Mask:             apikey.Mask(plain),
+		Name:             input.Name,
+		AllowedEndpoints: endpoints,
 	})
 	if err != nil {
 		return CreatedAPIKey{}, err
@@ -75,24 +82,29 @@ func (s APIKeyService) Create(ctx context.Context, actorID string, input CreateA
 	return CreatedAPIKey{APIKey: created, Plaintext: plain}, nil
 }
 
-func (s APIKeyService) CreateForUser(ctx context.Context, userID, name string) (CreatedAPIKey, error) {
-	return s.createOwned(ctx, userID, name)
+func (s APIKeyService) CreateForUser(ctx context.Context, userID, name string, allowedEndpoints []string) (CreatedAPIKey, error) {
+	return s.createOwned(ctx, userID, name, allowedEndpoints)
 }
 
-func (s APIKeyService) createOwned(ctx context.Context, userID, name string) (CreatedAPIKey, error) {
+func (s APIKeyService) createOwned(ctx context.Context, userID, name string, allowedEndpoints []string) (CreatedAPIKey, error) {
 	if userID == "" || name == "" {
 		return CreatedAPIKey{}, errors.New("name is required")
+	}
+	endpoints, err := NormalizeAllowedEndpoints(allowedEndpoints)
+	if err != nil {
+		return CreatedAPIKey{}, err
 	}
 	plain, err := apikey.Generate(s.cfg.APIKeyPrefix)
 	if err != nil {
 		return CreatedAPIKey{}, err
 	}
 	created, err := s.keys.Create(ctx, repository.CreateAPIKeyParams{
-		UserID:    userID,
-		KeyPrefix: apikey.Prefix(plain),
-		KeyHash:   apikey.Hash(plain),
-		Mask:      apikey.Mask(plain),
-		Name:      name,
+		UserID:           userID,
+		KeyPrefix:        apikey.Prefix(plain),
+		KeyHash:          apikey.Hash(plain),
+		Mask:             apikey.Mask(plain),
+		Name:             name,
+		AllowedEndpoints: endpoints,
 	})
 	if err != nil {
 		return CreatedAPIKey{}, err
@@ -100,11 +112,19 @@ func (s APIKeyService) createOwned(ctx context.Context, userID, name string) (Cr
 	return CreatedAPIKey{APIKey: created, Plaintext: plain}, nil
 }
 
-func (s APIKeyService) UpdateForUser(ctx context.Context, userID, id, name, status string) (repository.APIKey, error) {
+func (s APIKeyService) UpdateForUser(ctx context.Context, userID, id, name, status string, allowedEndpoints []string, updateAllowedEndpoints bool) (repository.APIKey, error) {
 	if status != "" && status != "active" && status != "disabled" {
 		return repository.APIKey{}, errors.New("invalid status")
 	}
-	return s.keys.UpdateForUser(ctx, repository.UpdateAPIKeyParams{ID: id, UserID: userID, Name: name, Status: status})
+	endpoints := []string{}
+	if updateAllowedEndpoints {
+		var err error
+		endpoints, err = NormalizeAllowedEndpoints(allowedEndpoints)
+		if err != nil {
+			return repository.APIKey{}, err
+		}
+	}
+	return s.keys.UpdateForUser(ctx, repository.UpdateAPIKeyParams{ID: id, UserID: userID, Name: name, Status: status, AllowedEndpoints: endpoints, UpdateAllowedEndpoints: updateAllowedEndpoints})
 }
 
 func (s APIKeyService) DeleteForUser(ctx context.Context, userID, id string) error {
@@ -139,4 +159,38 @@ func (s APIKeyService) Delete(ctx context.Context, actorID, id, ip, userAgent st
 		UserAgent:  userAgent,
 	})
 	return nil
+}
+
+var allowedGatewayEndpoints = map[string]struct{}{
+	"/v1/models":           {},
+	"/v1/chat/completions": {},
+	"/v1/messages":         {},
+	"/v1/embeddings":       {},
+}
+
+func NormalizeAllowedEndpoints(values []string) ([]string, error) {
+	seen := map[string]struct{}{}
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		endpoint := strings.TrimSpace(value)
+		if endpoint == "" {
+			continue
+		}
+		if !strings.HasPrefix(endpoint, "/") {
+			endpoint = "/" + endpoint
+		}
+		endpoint = strings.TrimRight(endpoint, "/")
+		if endpoint == "" {
+			continue
+		}
+		if _, ok := allowedGatewayEndpoints[endpoint]; !ok {
+			return nil, errors.New("invalid allowed endpoint")
+		}
+		if _, ok := seen[endpoint]; ok {
+			continue
+		}
+		seen[endpoint] = struct{}{}
+		normalized = append(normalized, endpoint)
+	}
+	return normalized, nil
 }
