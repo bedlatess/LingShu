@@ -303,14 +303,23 @@ func (r ChannelRepository) Disable(ctx context.Context, id string) error {
 }
 
 func (r ChannelRepository) Delete(ctx context.Context, id string) error {
-	tag, err := r.db.Exec(ctx, "UPDATE upstream_channels SET deleted_at=now(), status='disabled', updated_at=now() WHERE id=$1 AND deleted_at IS NULL", id)
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	tag, err := tx.Exec(ctx, "UPDATE upstream_channels SET deleted_at=now(), status='disabled', updated_at=now() WHERE id=$1 AND deleted_at IS NULL", id)
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
 		return errors.New("channel not found")
 	}
-	return nil
+	if _, err := tx.Exec(ctx, "DELETE FROM channel_models WHERE channel_id=$1", id); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (r ChannelRepository) MarkTest(ctx context.Context, id string, ok bool, message string, latencyMS int64) error {

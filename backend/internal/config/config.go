@@ -55,7 +55,7 @@ func Load() Config {
 		GatewayMaxBodyBytes:           envInt64("GATEWAY_MAX_BODY_BYTES", 2*1024*1024),
 		CleanupEnabled:                envBool("CLEANUP_ENABLED", false),
 		CleanupLogRetentionDays:       envInt("CLEANUP_LOG_RETENTION_DAYS", 30),
-		CleanupAuditRetentionDays:     envInt("CLEANUP_AUDIT_RETENTION_DAYS", 90),
+		CleanupAuditRetentionDays:     envInt("CLEANUP_AUDIT_RETENTION_DAYS", 30),
 		CleanupAnnouncementGraceDays:  envInt("CLEANUP_ANNOUNCEMENT_GRACE_DAYS", 30),
 		CleanupRedeemGraceDays:        envInt("CLEANUP_REDEEM_GRACE_DAYS", 90),
 		ChannelHealerEnabled:          envBool("CHANNEL_HEALER_ENABLED", true),

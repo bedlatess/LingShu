@@ -174,6 +174,9 @@ const admin = {
     userSide: "用户侧",
     schedulableUpstream: "可调度上游",
     boundChannels: "绑定渠道",
+    channelHealth: "渠道健康",
+    healthyChannel: "有健康渠道",
+    noHealthyChannel: "无健康渠道",
     inputPrice: "输入/1K",
     outputPrice: "输出/1K",
     inputCost: "输入成本/1K",
@@ -280,6 +283,7 @@ const admin = {
     },
     alerts: {
       title: "告警规则",
+      description: "配置运维告警的触发阈值和通知渠道。",
       enabled: "启用告警",
       channelFailureThreshold: "渠道连续失败阈值",
       gateway5xxRateThreshold: "网关 5xx 比例阈值",
@@ -287,11 +291,80 @@ const admin = {
       lowBalanceThreshold: "用户低余额阈值",
       emailRecipients: "邮件收件人",
       webhookURL: "Webhook 地址",
-      webhookProvider: "IM 类型"
+      webhookProvider: "IM 类型",
+      providers: {
+        wechat: "企业微信",
+        feishu: "飞书",
+        dingtalk: "钉钉"
+      }
     },
     saveSettings: "保存设置",
+    saveGroup: "保存本组",
     saveSuccess: "设置已保存",
     saveFailed: "保存设置失败",
+    groups: {
+      basic: {
+        title: "基础信息",
+        description: "站点名称、备案、联系方式、API 入口与注册策略。"
+      },
+      security: {
+        title: "安全",
+        description: "验证码、反向代理 IP 解析与自动黑名单窗口。"
+      },
+      smtp: {
+        title: "SMTP",
+        description: "用于验证码和告警通知的邮件发送账户。"
+      }
+    },
+    labels: {
+      site_name: "站点名称",
+      site_icp: "ICP备案",
+      site_police_beian: "公安备案",
+      contact_email: "联系邮箱",
+      api_base_url: "API Base URL",
+      registration_mode: "注册方式",
+      captcha_enabled: "启用验证码",
+      captcha_provider: "验证码服务",
+      trusted_proxy_enabled: "信任反向代理",
+      trusted_proxy_hops: "信任代理层数",
+      access_blacklist_auto_ttl_days: "自动黑名单天数",
+      smtp_host: "SMTP 主机",
+      smtp_port: "SMTP 端口",
+      smtp_user: "SMTP 用户",
+      smtp_pass: "SMTP 密码",
+      smtp_from: "发件人"
+    },
+    helpers: {
+      site_name: "显示在浏览器标题、落地页和页脚。",
+      site_icp: "可选，展示在公共页脚。",
+      site_police_beian: "可选，展示在公共页脚。",
+      contact_email: "展示给用户的支持邮箱。",
+      api_base_url: "留空则使用当前域名。Anthropic 使用 /messages，OpenAI 使用 /v1。",
+      registration_mode: "控制访客是否可以直接注册账号。",
+      captcha_enabled: "启用后登录、注册和找回密码需要验证码。",
+      captcha_provider: "选择已配置站点密钥的验证码服务。",
+      trusted_proxy_enabled: "只在流量经过可信反向代理时启用。",
+      trusted_proxy_hops: "解析客户端 IP 时信任的代理层数。",
+      access_blacklist_auto_ttl_days: "自动黑名单的默认过期天数。",
+      smtp_host: "SMTP 服务器地址。",
+      smtp_port: "常用端口为 465、587 或 25。",
+      smtp_user: "用于 SMTP 认证的账号。",
+      smtp_pass: "不更换凭据时可保持不变。",
+      smtp_from: "邮件展示的发件地址。",
+      alert_enabled: "开启定时告警评估和通知发送。",
+      alert_channel_failure_threshold: "渠道连续失败达到该次数时告警或停用。",
+      alert_gateway_5xx_rate_threshold: "网关 5xx 响应超过该比例时触发。",
+      alert_upstream_error_rate_threshold: "上游 401/429 类错误超过该比例时触发。",
+      alert_low_balance_threshold: "用户可用余额低于该金额时通知。",
+      alert_email_recipients: "多个邮箱用英文逗号分隔。",
+      alert_webhook_url: "用于 IM 通知的 Webhook 地址。",
+      alert_webhook_provider: "选择 Webhook 所需的消息格式。"
+    },
+    registrationModes: {
+      closed: "关闭注册",
+      invite: "邀请注册",
+      open: "开放注册"
+    },
     cleanup: "日志清理",
     runCleanup: "立即清理",
     cleanupSuccess: "清理任务已执行",

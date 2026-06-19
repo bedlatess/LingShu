@@ -1,4 +1,5 @@
 import React from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { useAuth } from "../providers/auth";
@@ -12,6 +13,7 @@ function PageFallback() {
 export function GuardedRoute({ meta, shell = true }: { meta?: RouteMeta; shell?: boolean }) {
   const { token, user, authStatus } = useAuth();
   const location = useLocation();
+  const reduceMotion = useReducedMotion();
   const requiresAuth = meta?.requiresAuth !== false;
   const requiresAdmin = meta?.requiresAdmin === true;
 
@@ -27,10 +29,26 @@ export function GuardedRoute({ meta, shell = true }: { meta?: RouteMeta; shell?:
     return <Navigate to="/dashboard" replace />;
   }
 
-  if (!shell) return <Outlet />;
+  const content = reduceMotion ? (
+    <Outlet />
+  ) : (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+      >
+        <Outlet />
+      </motion.div>
+    </AnimatePresence>
+  );
+
+  if (!shell) return content;
   return (
     <AppShell>
-      <Outlet />
+      {content}
     </AppShell>
   );
 }

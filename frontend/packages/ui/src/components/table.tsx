@@ -1,4 +1,5 @@
 import * as React from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { cn } from "../lib/cn";
@@ -38,50 +39,64 @@ export function DataTable<T>({
   className?: string;
   onRowClick?: (row: T) => void;
 }) {
-  if (loading) {
-    return (
-      <div className="rounded-lg border border-border bg-card p-4">
-        <Skeleton className="h-8 w-1/3" />
-        <div className="mt-4 grid gap-3">
-          {Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-10 w-full" />)}
-        </div>
-      </div>
-    );
-  }
-  if (data.length === 0) {
-    return <>{empty ?? <EmptyState title={emptyTitle} description={emptyDescription} />}</>;
-  }
+  const reduceMotion = useReducedMotion();
+  const fadeProps = reduceMotion ? {} : {
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    exit: { opacity: 0 },
+    transition: { duration: 0.15, ease: "easeOut" as const }
+  };
   return (
-    <div className={cn("overflow-hidden rounded-lg border border-border bg-card", className)}>
-      <div className="overflow-x-auto">
-        <Table>
-          <thead className="bg-[var(--bg-subtle)]">
-            <tr>
-              {columns.map((column) => (
-                <th key={column.key} className={cn("whitespace-nowrap px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground", column.className)}>
-                  {column.title}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((row, index) => (
-              <tr
-                key={rowKey(row, index)}
-                className={cn("border-t border-border transition-colors hover:bg-[var(--bg-subtle)]/70", onRowClick && "cursor-pointer")}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-              >
-                {columns.map((column) => (
-                  <td key={column.key} className={cn("px-4 py-3 align-top text-sm text-foreground", column.className)}>
-                    {column.render ? column.render(row) : String((row as Record<string, unknown>)[column.key] ?? "-")}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      </div>
-    </div>
+    <AnimatePresence mode="wait" initial={false}>
+      {loading ? (
+        <motion.div key="loading" className="rounded-lg border border-border bg-card p-4" {...fadeProps}>
+          <Skeleton className="h-8 w-1/3" />
+          <div className="mt-4 grid gap-3">
+            {Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-10 w-full" />)}
+          </div>
+        </motion.div>
+      ) : data.length === 0 ? (
+        <motion.div key="empty" {...fadeProps}>{empty ?? <EmptyState title={emptyTitle} description={emptyDescription} />}</motion.div>
+      ) : (
+        <motion.div key="table" className={cn("overflow-hidden rounded-lg border border-border bg-card", className)} {...fadeProps}>
+          <div className="overflow-x-auto">
+            <Table>
+              <thead className="bg-[var(--bg-subtle)]">
+                <tr>
+                  {columns.map((column) => (
+                    <th key={column.key} className={cn("whitespace-nowrap px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground", column.className)}>
+                      {column.title}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <AnimatePresence initial={false}>
+                  {data.map((row, index) => (
+                    <motion.tr
+                      key={rowKey(row, index)}
+                      layout={!reduceMotion}
+                      initial={reduceMotion ? false : { opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className={cn("border-t border-border transition-colors hover:bg-[var(--bg-subtle)]/70", onRowClick && "cursor-pointer")}
+                      onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    >
+                      {columns.map((column) => (
+                        <td key={column.key} className={cn("px-4 py-3 align-top text-sm text-foreground", column.className)}>
+                          {column.render ? column.render(row) : String((row as Record<string, unknown>)[column.key] ?? "-")}
+                        </td>
+                      ))}
+                    </motion.tr>
+                  ))}
+                </AnimatePresence>
+              </tbody>
+            </Table>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 

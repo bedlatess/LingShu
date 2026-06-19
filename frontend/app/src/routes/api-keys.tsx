@@ -152,12 +152,12 @@ export function ApiKeysPage() {
 function normalizedBaseURL(configured?: string) {
   const value = configured?.trim();
   if (value) return value.replace(/\/$/, "");
-  return `${window.location.origin}/v1`;
+  return window.location.origin;
 }
 
 const endpointOptions = [
   { value: "/v1/chat/completions", labelKey: "chat" },
-  { value: "/v1/messages", labelKey: "messages" },
+  { value: "/messages", labelKey: "messages" },
   { value: "/v1/embeddings", labelKey: "embeddings" },
   { value: "/v1/models", labelKey: "models" }
 ] as const;

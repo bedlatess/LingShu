@@ -122,7 +122,7 @@ export function DocsPage() {
 function normalizedBaseURL(configured?: string) {
   const value = configured?.trim();
   if (value) return value.replace(/\/$/, "");
-  return `${window.location.origin}/v1`;
+  return window.location.origin;
 }
 
 function Snippet({ title, value, onCopy }: { title: string; value: string; onCopy: (value: string) => void }) {
@@ -155,7 +155,7 @@ function EndpointBadges({ model }: { model: UserModelConfig }) {
 function supportedEndpoints(model: UserModelConfig) {
   if (model.type === "embedding") return ["/v1/embeddings"];
   if (model.type === "image") return ["/v1/images/generations"];
-  return ["/v1/chat/completions", "/v1/messages"];
+  return ["/v1/chat/completions", "/messages", "/v1/models"];
 }
 
 function buildSnippets(baseURL: string, chatModel: string, embeddingModel: string) {
@@ -163,7 +163,7 @@ function buildSnippets(baseURL: string, chatModel: string, embeddingModel: strin
     curl: [
       {
         title: "openai",
-        value: `curl ${baseURL}/chat/completions \\\n  -H "Authorization: Bearer ${sampleKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"${chatModel}","messages":[{"role":"user","content":"Hello"}],"stream":false}'`
+        value: `curl ${baseURL}/v1/chat/completions \\\n  -H "Authorization: Bearer ${sampleKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"${chatModel}","messages":[{"role":"user","content":"Hello"}],"stream":false}'`
       },
       {
         title: "anthropic",
@@ -171,13 +171,13 @@ function buildSnippets(baseURL: string, chatModel: string, embeddingModel: strin
       },
       {
         title: "embeddings",
-        value: `curl ${baseURL}/embeddings \\\n  -H "Authorization: Bearer ${sampleKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"${embeddingModel}","input":"LingShu gateway"}'`
+        value: `curl ${baseURL}/v1/embeddings \\\n  -H "Authorization: Bearer ${sampleKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"${embeddingModel}","input":"LingShu gateway"}'`
       }
     ],
     python: [
       {
         title: "openai",
-        value: `from openai import OpenAI\n\nclient = OpenAI(base_url="${baseURL}", api_key="${sampleKey}")\nresp = client.chat.completions.create(\n    model="${chatModel}",\n    messages=[{"role": "user", "content": "Hello"}],\n)\nprint(resp.choices[0].message.content)`
+        value: `from openai import OpenAI\n\nclient = OpenAI(base_url="${baseURL}/v1", api_key="${sampleKey}")\nresp = client.chat.completions.create(\n    model="${chatModel}",\n    messages=[{"role": "user", "content": "Hello"}],\n)\nprint(resp.choices[0].message.content)`
       },
       {
         title: "anthropic",
@@ -185,13 +185,13 @@ function buildSnippets(baseURL: string, chatModel: string, embeddingModel: strin
       },
       {
         title: "embeddings",
-        value: `from openai import OpenAI\n\nclient = OpenAI(base_url="${baseURL}", api_key="${sampleKey}")\nresp = client.embeddings.create(model="${embeddingModel}", input="LingShu gateway")\nprint(resp.data[0].embedding[:5])`
+        value: `from openai import OpenAI\n\nclient = OpenAI(base_url="${baseURL}/v1", api_key="${sampleKey}")\nresp = client.embeddings.create(model="${embeddingModel}", input="LingShu gateway")\nprint(resp.data[0].embedding[:5])`
       }
     ],
     node: [
       {
         title: "openai",
-        value: `import OpenAI from "openai";\n\nconst client = new OpenAI({ baseURL: "${baseURL}", apiKey: "${sampleKey}" });\nconst resp = await client.chat.completions.create({\n  model: "${chatModel}",\n  messages: [{ role: "user", content: "Hello" }],\n});\nconsole.log(resp.choices[0].message.content);`
+        value: `import OpenAI from "openai";\n\nconst client = new OpenAI({ baseURL: "${baseURL}/v1", apiKey: "${sampleKey}" });\nconst resp = await client.chat.completions.create({\n  model: "${chatModel}",\n  messages: [{ role: "user", content: "Hello" }],\n});\nconsole.log(resp.choices[0].message.content);`
       },
       {
         title: "anthropic",
@@ -199,7 +199,7 @@ function buildSnippets(baseURL: string, chatModel: string, embeddingModel: strin
       },
       {
         title: "embeddings",
-        value: `import OpenAI from "openai";\n\nconst client = new OpenAI({ baseURL: "${baseURL}", apiKey: "${sampleKey}" });\nconst resp = await client.embeddings.create({ model: "${embeddingModel}", input: "LingShu gateway" });\nconsole.log(resp.data[0].embedding.slice(0, 5));`
+        value: `import OpenAI from "openai";\n\nconst client = new OpenAI({ baseURL: "${baseURL}/v1", apiKey: "${sampleKey}" });\nconst resp = await client.embeddings.create({ model: "${embeddingModel}", input: "LingShu gateway" });\nconsole.log(resp.data[0].embedding.slice(0, 5));`
       }
     ]
   };

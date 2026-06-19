@@ -1,4 +1,5 @@
 import * as React from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Command as CommandIcon } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Toaster as Sonner, toast } from "sonner";
@@ -97,13 +98,16 @@ export function PageHeader({ eyebrow, title, description, action }: { eyebrow?: 
 }
 
 export function StatCard({ label, value, hint, icon: Icon, trend }: { label: string; value: React.ReactNode; hint?: string; icon?: React.ComponentType<{ className?: string }>; trend?: string }) {
+  const animatedValue = useCountUpValue(value);
   return (
     <Card className="group overflow-hidden transition-colors hover:border-[var(--border-strong)]">
       <CardContent className="p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="text-sm text-muted-foreground">{label}</p>
-            <strong className="mt-2 block truncate font-serif text-2xl font-semibold tracking-[-0.02em] text-foreground">{value}</strong>
+            <strong className="mt-2 block truncate font-serif text-2xl font-semibold tracking-[-0.02em] text-foreground">
+              {animatedValue.animated ? <motion.span>{animatedValue.value}</motion.span> : value}
+            </strong>
           </div>
           {Icon ? (
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-border bg-[var(--bg-subtle)] text-[var(--clay)]">
@@ -115,6 +119,60 @@ export function StatCard({ label, value, hint, icon: Icon, trend }: { label: str
       </CardContent>
     </Card>
   );
+}
+
+function useCountUpValue(value: React.ReactNode) {
+  const reduceMotion = useReducedMotion();
+  const target = React.useMemo(() => parsePlainNumber(value), [value]);
+  const [display, setDisplay] = React.useState(() => formatCountUpValue(target, value));
+
+  React.useEffect(() => {
+    if (!target || reduceMotion) {
+      setDisplay(formatCountUpValue(target, value));
+      return;
+    }
+    let frame = 0;
+    let raf = 0;
+    const frames = 22;
+    const tick = () => {
+      frame += 1;
+      const progress = Math.min(1, frame / frames);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplay(formatNumericValue(target.value * eased, target.decimals));
+      if (progress < 1) {
+        raf = window.requestAnimationFrame(tick);
+      }
+    };
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
+  }, [reduceMotion, target, value]);
+
+  return { animated: Boolean(target && !reduceMotion), value: display };
+}
+
+function parsePlainNumber(value: React.ReactNode): { value: number; decimals: number } | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return { value, decimals: Number.isInteger(value) ? 0 : 2 };
+  }
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!/^-?\d+(\.\d+)?$/.test(trimmed)) return null;
+  const decimals = trimmed.includes(".") ? trimmed.split(".")[1].length : 0;
+  const numeric = Number(trimmed);
+  if (!Number.isFinite(numeric)) return null;
+  return { value: numeric, decimals };
+}
+
+function formatCountUpValue(target: { value: number; decimals: number } | null, fallback: React.ReactNode) {
+  if (!target) return fallback;
+  return formatNumericValue(target.value, target.decimals);
+}
+
+function formatNumericValue(value: number, decimals: number) {
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  });
 }
 
 export function Toaster() {

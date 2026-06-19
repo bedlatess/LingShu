@@ -60,6 +60,13 @@ func endpointAllowed(path string, allowed []string) bool {
 		if candidate == path {
 			return true
 		}
+		if equivalentGatewayEndpoint(candidate, path) {
+			return true
+		}
 	}
 	return false
+}
+
+func equivalentGatewayEndpoint(candidate, path string) bool {
+	return (candidate == "/messages" && path == "/v1/messages") || (candidate == "/v1/messages" && path == "/messages")
 }

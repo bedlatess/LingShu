@@ -155,7 +155,7 @@ function DetailItem({ label, value, mono }: { label: string; value: string; mono
 function supportedEndpoints(model: PublicModel) {
   if (model.type === "embedding") return ["/v1/embeddings"];
   if (model.type === "image") return ["/v1/images/generations"];
-  return ["/v1/chat/completions", "/v1/messages"];
+  return ["/v1/chat/completions", "/messages"];
 }
 
 function Price({ label, value }: { label: string; value: string }) {

@@ -24,6 +24,7 @@ type Model struct {
 	SupportsStream          bool      `json:"supports_stream"`
 	SupportsTools           bool      `json:"supports_tools"`
 	SupportsVision          bool      `json:"supports_vision"`
+	HasHealthyChannel       bool      `json:"has_healthy_channel"`
 	Status                  string    `json:"status"`
 	SortOrder               int       `json:"sort_order"`
 	CreatedAt               time.Time `json:"created_at"`
@@ -93,6 +94,7 @@ func (r ModelRepository) ListVisible(ctx context.Context) ([]Model, error) {
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
 		       cache_creation_price_per_1k::text, cache_read_price_per_1k::text,
 		       rate_multiplier::text, supports_stream, supports_tools, supports_vision,
+		       false AS has_healthy_channel,
 		       status, sort_order, created_at, updated_at
 		FROM models
 		WHERE status='enabled'
@@ -130,10 +132,20 @@ func (r ModelRepository) ListPaged(ctx context.Context, limit, offset int) ([]Mo
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
 		       cache_creation_price_per_1k::text, cache_read_price_per_1k::text,
 		       rate_multiplier::text, supports_stream, supports_tools, supports_vision,
+		       EXISTS (
+		       	SELECT 1
+		       	FROM channel_models cm
+		       	JOIN upstream_channels c ON c.id = cm.channel_id
+		       	WHERE cm.model_id = models.id
+		       	  AND cm.status='enabled'
+		       	  AND c.status='enabled'
+		       	  AND c.health='healthy'
+		       	  AND c.deleted_at IS NULL
+		       ) AS has_healthy_channel,
 		       status, sort_order, created_at, updated_at
 		FROM models
 		WHERE deleted_at IS NULL
-		ORDER BY sort_order ASC, created_at DESC
+		ORDER BY has_healthy_channel DESC, sort_order ASC, created_at DESC
 		LIMIT $1 OFFSET $2
 	`, limit, offset)
 	if err != nil {
@@ -158,6 +170,7 @@ func (r ModelRepository) FindByID(ctx context.Context, id string) (Model, error)
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
 		       cache_creation_price_per_1k::text, cache_read_price_per_1k::text,
 		       rate_multiplier::text, supports_stream, supports_tools, supports_vision,
+		       false AS has_healthy_channel,
 		       status, sort_order, created_at, updated_at
 		FROM models
 		WHERE id=$1 AND deleted_at IS NULL
@@ -226,6 +239,7 @@ func (r ModelRepository) Create(ctx context.Context, input ModelInput) (Model, e
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
 		       cache_creation_price_per_1k::text, cache_read_price_per_1k::text,
 		       rate_multiplier::text, supports_stream, supports_tools, supports_vision,
+		       false AS has_healthy_channel,
 		       status, sort_order, created_at, updated_at
 	`, input.PublicName, input.Type, input.Group, input.BillingMode, input.InputPricePer1K, input.OutputPricePer1K, input.PricePerCall, input.CacheCreationPricePer1K, input.CacheReadPricePer1K, input.RateMultiplier, input.SupportsStream, input.SupportsTools, input.SupportsVision, input.Status, input.SortOrder)
 	return scanModel(row)
@@ -244,6 +258,7 @@ func (r ModelRepository) Update(ctx context.Context, id string, input ModelInput
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
 		       cache_creation_price_per_1k::text, cache_read_price_per_1k::text,
 		       rate_multiplier::text, supports_stream, supports_tools, supports_vision,
+		       false AS has_healthy_channel,
 		       status, sort_order, created_at, updated_at
 	`, id, input.PublicName, input.Type, input.Group, input.BillingMode, input.InputPricePer1K, input.OutputPricePer1K, input.PricePerCall, input.CacheCreationPricePer1K, input.CacheReadPricePer1K, input.RateMultiplier, input.SupportsStream, input.SupportsTools, input.SupportsVision, input.Status, input.SortOrder)
 	return scanModel(row)
@@ -292,6 +307,7 @@ func scanModel(row modelScanner) (Model, error) {
 		&item.SupportsStream,
 		&item.SupportsTools,
 		&item.SupportsVision,
+		&item.HasHealthyChannel,
 		&item.Status,
 		&item.SortOrder,
 		&item.CreatedAt,

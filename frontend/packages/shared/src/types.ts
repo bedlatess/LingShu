@@ -55,6 +55,7 @@ export interface ModelConfig {
   supports_stream: boolean;
   supports_tools: boolean;
   supports_vision: boolean;
+  has_healthy_channel?: boolean;
   status: string;
   sort_order: number;
 }

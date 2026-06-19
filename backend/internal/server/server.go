@@ -212,6 +212,11 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 		r.Post("/messages", gatewayHandler.Messages)
 		r.Post("/embeddings", gatewayHandler.Embeddings)
 	})
+	r.With(
+		middleware.MaxBody(gatewayMaxBodyBytes(cfg.GatewayMaxBodyBytes)),
+		middleware.AccessBlacklist(blacklistService, "gateway"),
+		middleware.APIKeyAuth(apiKeyRepo),
+	).Post("/messages", gatewayHandler.Messages)
 	return r
 }
 

@@ -43,7 +43,7 @@ func NewCleaner(db *pgxpool.Pool, redisClient *redis.Client, cfg CleanerConfig) 
 		cfg.LogRetentionDays = 30
 	}
 	if cfg.AuditRetentionDays <= 0 {
-		cfg.AuditRetentionDays = 90
+		cfg.AuditRetentionDays = 30
 	}
 	if cfg.AnnouncementGraceDays <= 0 {
 		cfg.AnnouncementGraceDays = 30

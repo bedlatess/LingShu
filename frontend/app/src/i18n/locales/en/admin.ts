@@ -174,6 +174,9 @@ const admin = {
     userSide: "User side",
     schedulableUpstream: "Schedulable upstream",
     boundChannels: "Bound Channels",
+    channelHealth: "Channel Health",
+    healthyChannel: "Healthy channel",
+    noHealthyChannel: "No healthy channel",
     inputPrice: "Input / 1K",
     outputPrice: "Output / 1K",
     inputCost: "Input cost / 1K",
@@ -280,6 +283,7 @@ const admin = {
     },
     alerts: {
       title: "Alert Rules",
+      description: "Configure thresholds and delivery channels for operational alerts.",
       enabled: "Enable alerts",
       channelFailureThreshold: "Channel consecutive failure threshold",
       gateway5xxRateThreshold: "Gateway 5xx rate threshold",
@@ -287,11 +291,80 @@ const admin = {
       lowBalanceThreshold: "Low balance threshold",
       emailRecipients: "Email recipients",
       webhookURL: "Webhook URL",
-      webhookProvider: "IM provider"
+      webhookProvider: "IM provider",
+      providers: {
+        wechat: "WeCom",
+        feishu: "Feishu",
+        dingtalk: "DingTalk"
+      }
     },
     saveSettings: "Save Settings",
+    saveGroup: "Save this group",
     saveSuccess: "Settings saved",
     saveFailed: "Save settings failed",
+    groups: {
+      basic: {
+        title: "Basic Info",
+        description: "Public site identity, contact details, API entrance, and registration policy."
+      },
+      security: {
+        title: "Security",
+        description: "Captcha, trusted proxy parsing, and automatic blacklist safety windows."
+      },
+      smtp: {
+        title: "SMTP",
+        description: "Email delivery account used for verification codes and alert notifications."
+      }
+    },
+    labels: {
+      site_name: "Site name",
+      site_icp: "ICP filing",
+      site_police_beian: "Police filing",
+      contact_email: "Contact email",
+      api_base_url: "API base URL",
+      registration_mode: "Registration mode",
+      captcha_enabled: "Enable captcha",
+      captcha_provider: "Captcha provider",
+      trusted_proxy_enabled: "Trust reverse proxy headers",
+      trusted_proxy_hops: "Trusted proxy hops",
+      access_blacklist_auto_ttl_days: "Automatic blacklist days",
+      smtp_host: "SMTP host",
+      smtp_port: "SMTP port",
+      smtp_user: "SMTP username",
+      smtp_pass: "SMTP password",
+      smtp_from: "Sender address"
+    },
+    helpers: {
+      site_name: "Displayed in the browser title, landing page, and public footer.",
+      site_icp: "Optional filing number shown in the public footer.",
+      site_police_beian: "Optional public security filing shown in the public footer.",
+      contact_email: "Support mailbox shown to users.",
+      api_base_url: "Leave blank to use the current domain. Anthropic uses /messages, OpenAI uses /v1.",
+      registration_mode: "Controls whether visitors can create accounts directly.",
+      captcha_enabled: "Require captcha on login, registration, and password reset when enabled.",
+      captcha_provider: "Choose the captcha provider configured with your public and secret keys.",
+      trusted_proxy_enabled: "Only enable this when traffic passes through a trusted reverse proxy.",
+      trusted_proxy_hops: "How many proxy hops to trust when extracting the client IP.",
+      access_blacklist_auto_ttl_days: "Default expiry for automatic blacklist entries.",
+      smtp_host: "SMTP server hostname.",
+      smtp_port: "Common ports are 465, 587, or 25.",
+      smtp_user: "Mailbox or account name used to authenticate with SMTP.",
+      smtp_pass: "Leave unchanged unless rotating the SMTP credential.",
+      smtp_from: "Email address shown as the sender.",
+      alert_enabled: "Turn on scheduled alert evaluation and notification delivery.",
+      alert_channel_failure_threshold: "Disable or notify when a channel reaches this consecutive failure count.",
+      alert_gateway_5xx_rate_threshold: "Trigger when gateway 5xx responses exceed this ratio.",
+      alert_upstream_error_rate_threshold: "Trigger when upstream 401/429 style errors exceed this ratio.",
+      alert_low_balance_threshold: "Notify when a user's available balance falls below this amount.",
+      alert_email_recipients: "Comma-separated email recipients.",
+      alert_webhook_url: "Webhook endpoint for IM notifications.",
+      alert_webhook_provider: "Select the message format expected by the webhook provider."
+    },
+    registrationModes: {
+      closed: "Closed",
+      invite: "Invite only",
+      open: "Open registration"
+    },
     cleanup: "Log Cleanup",
     runCleanup: "Run Cleanup",
     cleanupSuccess: "Cleanup task executed",

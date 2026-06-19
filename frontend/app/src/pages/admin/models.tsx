@@ -70,6 +70,7 @@ export function ModelsPage({ api }: { api: AdminAPI }) {
           { key: "output_price_per_1k", title: t("models.outputPrice"), render: (row) => fmtMoney(row.output_price_per_1k) },
           { key: "capabilities", title: t("models.capabilities.short"), render: (row) => <CapabilityBadges model={row} /> },
           { key: "rate_multiplier", title: t("common.multiplier") },
+          { key: "channel_health", title: t("models.channelHealth"), render: (row) => <Badge variant={row.has_healthy_channel ? "success" : "warning"}>{row.has_healthy_channel ? t("models.healthyChannel") : t("models.noHealthyChannel")}</Badge> },
           { key: "status", title: t("common.status"), render: (row) => <Badge variant={statusVariant(row.status)}>{row.status}</Badge> },
           { key: "actions", title: t("common.actions"), render: (row) => <div className="flex gap-2"><Button size="sm" variant="secondary" onClick={() => { setEditing(row); setEditForm(row); }}>{t("common.edit")}</Button><Button size="sm" variant="destructive" onClick={() => runWrite(async () => { await api.deleteModel(row.id); await refresh(); }, t("models.deleteFailed"))}>{t("common.delete")}</Button></div> }
         ]}
