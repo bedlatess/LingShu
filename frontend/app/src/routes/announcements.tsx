@@ -2,7 +2,7 @@ import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTranslation } from "react-i18next";
-import type { Announcement } from "@lingshu/shared/user-types";
+import type { Announcement } from "@lingshu/shared";
 
 import { Badge, Card, CardContent, EmptyState, PageHeader } from "@lingshu/ui";
 import { useAuth } from "@/providers/auth";

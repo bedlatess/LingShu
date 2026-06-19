@@ -180,6 +180,13 @@ const admin = {
     outputCost: "Output cost / 1K",
     cacheCreateCost: "Cache write cost / 1K",
     cacheReadCost: "Cache read cost / 1K",
+    capabilities: {
+      title: "Capabilities",
+      short: "Capabilities",
+      stream: "Streaming",
+      tools: "Tools",
+      vision: "Vision"
+    },
     types: {
       chat: "Chat",
       embedding: "Embedding",
@@ -267,6 +274,21 @@ const admin = {
     title: "System Settings",
     description: "Maintain gateway runtime parameters and cleanup tasks.",
     configItems: "Configuration",
+    tabs: {
+      general: "General",
+      alerts: "Alerts"
+    },
+    alerts: {
+      title: "Alert Rules",
+      enabled: "Enable alerts",
+      channelFailureThreshold: "Channel consecutive failure threshold",
+      gateway5xxRateThreshold: "Gateway 5xx rate threshold",
+      upstreamErrorRateThreshold: "Upstream 401/429 rate threshold",
+      lowBalanceThreshold: "Low balance threshold",
+      emailRecipients: "Email recipients",
+      webhookURL: "Webhook URL",
+      webhookProvider: "IM provider"
+    },
     saveSettings: "Save Settings",
     saveSuccess: "Settings saved",
     saveFailed: "Save settings failed",
@@ -331,7 +353,11 @@ const admin = {
     resetPasswordFailed: "Reset password failed",
     revokeTokens: "Force logout",
     revokeSuccess: "User sessions revoked",
-    revokeFailed: "Force logout failed"
+    revokeFailed: "Force logout failed",
+    confirmBanTitle: "Confirm ban",
+    confirmBanDescription: "Ban {{name}} now? The user will no longer be able to sign in or use API keys until unbanned.",
+    confirmRevokeTitle: "Confirm force logout",
+    confirmRevokeDescription: "Revoke all active sessions for {{name}} now? The user must sign in again."
   },
   apiKeys: {
     eyebrow: "API Keys",
@@ -369,6 +395,62 @@ const admin = {
       actor: "Actor",
       ip: "IP",
       createdAt: "Time"
+    }
+  },
+  blacklist: {
+    eyebrow: "Security",
+    title: "Access Blacklist",
+    description: "Block risky IPs, CIDR ranges, or device fingerprints across login, redemption, and gateway traffic.",
+    createTitle: "Add block rule",
+    create: "Add rule",
+    createSuccess: "Block rule created",
+    createFailed: "Create block rule failed",
+    confirmCreateTitle: "Confirm block rule",
+    confirmCreateDescription: "Add {{value}} to the access blacklist?",
+    release: "Release",
+    releaseSuccess: "Block rule released",
+    releaseFailed: "Release rule failed",
+    confirmReleaseTitle: "Release block rule",
+    confirmReleaseDescription: "Release {{value}} from the access blacklist?",
+    kind: "Kind",
+    device: "Device",
+    scope: "Scope",
+    value: "Value",
+    valueHint: "Use a single IP, CIDR range, or device ID.",
+    reason: "Reason",
+    permanent: "Permanent",
+    permanentHint: "Keep this off for the default 7-day safety window.",
+    expiresAt: "Expires at",
+    expiresHint: "Leave empty to use the default 7-day expiry.",
+    search: "Search value or reason",
+    allKinds: "All kinds",
+    allScopes: "All scopes",
+    activeOnly: "Active",
+    releasedOnly: "Released",
+    allStatus: "All status",
+    active: "Active",
+    released: "Released",
+    never: "Never",
+    emptyTitle: "No blacklist entries",
+    emptyDescription: "Manual or automatic block rules will appear here.",
+    scopes: {
+      all: "All",
+      login: "Login and redeem",
+      gateway: "Gateway"
+    },
+    sources: {
+      manual: "Manual",
+      auto: "Auto"
+    },
+    table: {
+      kind: "Kind",
+      value: "Value",
+      scope: "Scope",
+      source: "Source",
+      status: "Status",
+      expiresAt: "Expires",
+      createdAt: "Created",
+      actions: "Actions"
     }
   }
 };

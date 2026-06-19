@@ -17,6 +17,7 @@ type GatewayLog struct {
 	TotalTokens int       `json:"total_tokens"`
 	BaseCost    string    `json:"base_cost"`
 	Charge      string    `json:"charge"`
+	ClientIP    string    `json:"client_ip,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
@@ -131,7 +132,7 @@ func (r ReportRepository) UserLogsFilteredPaged(ctx context.Context, userID stri
 	}
 	args = append(args, limit, offset)
 	rows, err := r.db.Query(ctx, `
-		SELECT request_id, user_id::text, COALESCE(model_id::text,''), status, http_status, total_tokens, base_cost::text, charge::text, created_at
+		SELECT request_id, user_id::text, COALESCE(model_id::text,''), status, http_status, total_tokens, base_cost::text, charge::text, COALESCE(client_ip::text, ''), created_at
 		FROM gateway_requests
 		`+where+`
 		ORDER BY created_at DESC
@@ -141,7 +142,7 @@ func (r ReportRepository) UserLogsFilteredPaged(ctx context.Context, userID stri
 		return nil, 0, err
 	}
 	defer rows.Close()
-	items, err := scanGatewayLogs(rows)
+	items, err := scanAdminGatewayLogs(rows)
 	return items, total, err
 }
 
@@ -312,7 +313,7 @@ func (r ReportRepository) AdminLogsPaged(ctx context.Context, limit, offset int)
 		return nil, 0, err
 	}
 	rows, err := r.db.Query(ctx, `
-		SELECT request_id, user_id::text, COALESCE(model_id::text,''), status, http_status, total_tokens, base_cost::text, charge::text, created_at
+		SELECT request_id, user_id::text, COALESCE(model_id::text,''), status, http_status, total_tokens, base_cost::text, charge::text, COALESCE(client_ip::text,''), created_at
 		FROM gateway_requests
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2
@@ -321,13 +322,13 @@ func (r ReportRepository) AdminLogsPaged(ctx context.Context, limit, offset int)
 		return nil, 0, err
 	}
 	defer rows.Close()
-	items, err := scanGatewayLogs(rows)
+	items, err := scanAdminGatewayLogs(rows)
 	return items, total, err
 }
 
 func (r ReportRepository) ExportAdminLogs(ctx context.Context, fn func(GatewayLog) error) error {
 	rows, err := r.db.Query(ctx, `
-		SELECT request_id, user_id::text, COALESCE(model_id::text,''), status, http_status, total_tokens, base_cost::text, charge::text, created_at
+		SELECT request_id, user_id::text, COALESCE(model_id::text,''), status, http_status, total_tokens, base_cost::text, charge::text, COALESCE(client_ip::text,''), created_at
 		FROM gateway_requests
 		ORDER BY created_at DESC
 	`)
@@ -337,7 +338,7 @@ func (r ReportRepository) ExportAdminLogs(ctx context.Context, fn func(GatewayLo
 	defer rows.Close()
 	for rows.Next() {
 		var item GatewayLog
-		if err := rows.Scan(&item.RequestID, &item.UserID, &item.ModelID, &item.Status, &item.HTTPStatus, &item.TotalTokens, &item.BaseCost, &item.Charge, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&item.RequestID, &item.UserID, &item.ModelID, &item.Status, &item.HTTPStatus, &item.TotalTokens, &item.BaseCost, &item.Charge, &item.ClientIP, &item.CreatedAt); err != nil {
 			return err
 		}
 		if err := fn(item); err != nil {
@@ -377,7 +378,7 @@ func (r ReportRepository) ExportAdminLedger(ctx context.Context, fn func(LedgerR
 
 func (r ReportRepository) ExportUserLogs(ctx context.Context, userID string, fn func(GatewayLog) error) error {
 	rows, err := r.db.Query(ctx, `
-		SELECT request_id, user_id::text, COALESCE(model_id::text,''), status, http_status, total_tokens, base_cost::text, charge::text, created_at
+		SELECT request_id, user_id::text, COALESCE(model_id::text,''), status, http_status, total_tokens, base_cost::text, charge::text, COALESCE(client_ip::text, ''), created_at
 		FROM gateway_requests
 		WHERE user_id=$1
 		ORDER BY created_at DESC
@@ -388,7 +389,7 @@ func (r ReportRepository) ExportUserLogs(ctx context.Context, userID string, fn 
 	defer rows.Close()
 	for rows.Next() {
 		var item GatewayLog
-		if err := rows.Scan(&item.RequestID, &item.UserID, &item.ModelID, &item.Status, &item.HTTPStatus, &item.TotalTokens, &item.BaseCost, &item.Charge, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&item.RequestID, &item.UserID, &item.ModelID, &item.Status, &item.HTTPStatus, &item.TotalTokens, &item.BaseCost, &item.Charge, &item.ClientIP, &item.CreatedAt); err != nil {
 			return err
 		}
 		if err := fn(item); err != nil {
@@ -515,6 +516,18 @@ func scanGatewayLogs(rows rowsScanner) ([]GatewayLog, error) {
 	for rows.Next() {
 		var item GatewayLog
 		if err := rows.Scan(&item.RequestID, &item.UserID, &item.ModelID, &item.Status, &item.HTTPStatus, &item.TotalTokens, &item.BaseCost, &item.Charge, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func scanAdminGatewayLogs(rows rowsScanner) ([]GatewayLog, error) {
+	items := []GatewayLog{}
+	for rows.Next() {
+		var item GatewayLog
+		if err := rows.Scan(&item.RequestID, &item.UserID, &item.ModelID, &item.Status, &item.HTTPStatus, &item.TotalTokens, &item.BaseCost, &item.Charge, &item.ClientIP, &item.CreatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, item)

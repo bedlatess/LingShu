@@ -1,22 +1,24 @@
 import React from "react";
 import { BookOpen, Check, Copy, KeyRound, Terminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { UserModelConfig } from "@lingshu/shared/user-types";
+import type { UserModelConfig } from "@lingshu/shared";
 
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, DataTable, EmptyState, PageHeader, Tabs, toast } from "@lingshu/ui";
 import { copyText } from "@/lib/clipboard";
 import { trBillingMode, trType } from "@/lib/i18n";
 import { useAuth } from "@/providers/auth";
+import { useSiteInfo } from "@/providers/site-info";
 
 const sampleKey = "sk-lingshu_xxxxxxxxxxxxxxxxxxxxxxxx";
 
 export function DocsPage() {
   const { t } = useTranslation("docs");
   const { api } = useAuth();
+  const { siteInfo } = useSiteInfo();
   const [models, setModels] = React.useState<UserModelConfig[]>([]);
   const [tab, setTab] = React.useState("curl");
   const [loading, setLoading] = React.useState(true);
-  const baseURL = React.useMemo(() => `${window.location.origin}/v1`, []);
+  const baseURL = React.useMemo(() => normalizedBaseURL(siteInfo?.api_base_url), [siteInfo?.api_base_url]);
   const chatModel = models.find((item) => item.type === "chat")?.public_name || "gpt-4o-mini";
   const embeddingModel = models.find((item) => item.type === "embedding")?.public_name || "text-embedding-3-small";
 
@@ -105,9 +107,9 @@ export function DocsPage() {
               { key: "public_name", title: t("matrix.model"), render: (row) => <span className="font-medium">{row.public_name}</span> },
               { key: "type", title: t("matrix.type"), render: (row) => <Badge>{trType(row.type)}</Badge> },
               { key: "billing_mode", title: t("matrix.billing"), render: (row) => <Badge variant="info">{trBillingMode(row.billing_mode)}</Badge> },
-              { key: "stream", title: t("matrix.stream"), render: (row) => <Capability ok={row.type === "chat"} /> },
-              { key: "tools", title: t("matrix.tools"), render: (row) => <Capability ok={row.type === "chat"} /> },
-              { key: "vision", title: t("matrix.vision"), render: (row) => <Capability ok={row.type === "image"} /> },
+              { key: "stream", title: t("matrix.stream"), render: (row) => <Capability ok={row.supports_stream} /> },
+              { key: "tools", title: t("matrix.tools"), render: (row) => <Capability ok={row.supports_tools} /> },
+              { key: "vision", title: t("matrix.vision"), render: (row) => <Capability ok={row.supports_vision} /> },
               { key: "endpoints", title: t("matrix.endpoints"), render: (row) => <EndpointBadges model={row} /> }
             ]}
           />
@@ -115,6 +117,12 @@ export function DocsPage() {
       </Card>
     </div>
   );
+}
+
+function normalizedBaseURL(configured?: string) {
+  const value = configured?.trim();
+  if (value) return value.replace(/\/$/, "");
+  return `${window.location.origin}/v1`;
 }
 
 function Snippet({ title, value, onCopy }: { title: string; value: string; onCopy: (value: string) => void }) {

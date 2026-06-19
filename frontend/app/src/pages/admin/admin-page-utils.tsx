@@ -1,5 +1,5 @@
 import React from "react";
-import { toast } from "@lingshu/ui";
+import { copyText, toast } from "@lingshu/ui";
 import { i18n } from "../../i18n";
 
 export type Pager = { page: number; limit: number; total: number };
@@ -15,6 +15,9 @@ export const modelDefaults = {
   cache_read_price_per_1k: "0",
   price_per_call: "0",
   rate_multiplier: "1.200",
+  supports_stream: true,
+  supports_tools: true,
+  supports_vision: false,
   status: "enabled",
   sort_order: 0
 };
@@ -77,27 +80,6 @@ export async function downloadBlob(filename: string, load: () => Promise<Blob>) 
   } catch (err) {
     toast.error(`${i18n.t("admin:common.exportFailed")}: ${errText(err)}`);
   }
-}
-
-export async function copyText(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // Use textarea fallback below.
-  }
-  const ta = document.createElement("textarea");
-  ta.value = text;
-  ta.style.position = "fixed";
-  ta.style.opacity = "0";
-  document.body.appendChild(ta);
-  ta.focus();
-  ta.select();
-  const ok = document.execCommand("copy");
-  document.body.removeChild(ta);
-  return ok;
 }
 
 export function fmtMoney(v?: string | number) {

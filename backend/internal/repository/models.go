@@ -21,6 +21,9 @@ type Model struct {
 	CacheReadPricePer1K     string    `json:"cache_read_price_per_1k"`
 	PricePerCall            string    `json:"price_per_call"`
 	RateMultiplier          string    `json:"rate_multiplier"`
+	SupportsStream          bool      `json:"supports_stream"`
+	SupportsTools           bool      `json:"supports_tools"`
+	SupportsVision          bool      `json:"supports_vision"`
 	Status                  string    `json:"status"`
 	SortOrder               int       `json:"sort_order"`
 	CreatedAt               time.Time `json:"created_at"`
@@ -38,6 +41,9 @@ type ModelInput struct {
 	CacheReadPricePer1K     string `json:"cache_read_price_per_1k"`
 	PricePerCall            string `json:"price_per_call"`
 	RateMultiplier          string `json:"rate_multiplier"`
+	SupportsStream          bool   `json:"supports_stream"`
+	SupportsTools           bool   `json:"supports_tools"`
+	SupportsVision          bool   `json:"supports_vision"`
 	Status                  string `json:"status"`
 	SortOrder               int    `json:"sort_order"`
 }
@@ -86,7 +92,8 @@ func (r ModelRepository) ListVisible(ctx context.Context) ([]Model, error) {
 		SELECT id::text, public_name, type, model_group, billing_mode,
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
 		       cache_creation_price_per_1k::text, cache_read_price_per_1k::text,
-		       rate_multiplier::text, status, sort_order, created_at, updated_at
+		       rate_multiplier::text, supports_stream, supports_tools, supports_vision,
+		       status, sort_order, created_at, updated_at
 		FROM models
 		WHERE status='enabled'
 		  AND deleted_at IS NULL
@@ -122,7 +129,8 @@ func (r ModelRepository) ListPaged(ctx context.Context, limit, offset int) ([]Mo
 		SELECT id::text, public_name, type, model_group, billing_mode,
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
 		       cache_creation_price_per_1k::text, cache_read_price_per_1k::text,
-		       rate_multiplier::text, status, sort_order, created_at, updated_at
+		       rate_multiplier::text, supports_stream, supports_tools, supports_vision,
+		       status, sort_order, created_at, updated_at
 		FROM models
 		WHERE deleted_at IS NULL
 		ORDER BY sort_order ASC, created_at DESC
@@ -149,7 +157,8 @@ func (r ModelRepository) FindByID(ctx context.Context, id string) (Model, error)
 		SELECT id::text, public_name, type, model_group, billing_mode,
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
 		       cache_creation_price_per_1k::text, cache_read_price_per_1k::text,
-		       rate_multiplier::text, status, sort_order, created_at, updated_at
+		       rate_multiplier::text, supports_stream, supports_tools, supports_vision,
+		       status, sort_order, created_at, updated_at
 		FROM models
 		WHERE id=$1 AND deleted_at IS NULL
 	`, id)
@@ -209,14 +218,16 @@ func (r ModelRepository) Create(ctx context.Context, input ModelInput) (Model, e
 			public_name, type, model_group, billing_mode,
 			input_price_per_1k, output_price_per_1k, price_per_call,
 			cache_creation_price_per_1k, cache_read_price_per_1k,
-			rate_multiplier, status, sort_order
+			rate_multiplier, supports_stream, supports_tools, supports_vision,
+			status, sort_order
 		)
-		VALUES ($1,$2,$3,$4,$5::numeric,$6::numeric,$7::numeric,$8::numeric,$9::numeric,$10::numeric,$11,$12)
+		VALUES ($1,$2,$3,$4,$5::numeric,$6::numeric,$7::numeric,$8::numeric,$9::numeric,$10::numeric,$11,$12,$13,$14,$15)
 		RETURNING id::text, public_name, type, model_group, billing_mode,
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
 		       cache_creation_price_per_1k::text, cache_read_price_per_1k::text,
-		       rate_multiplier::text, status, sort_order, created_at, updated_at
-	`, input.PublicName, input.Type, input.Group, input.BillingMode, input.InputPricePer1K, input.OutputPricePer1K, input.PricePerCall, input.CacheCreationPricePer1K, input.CacheReadPricePer1K, input.RateMultiplier, input.Status, input.SortOrder)
+		       rate_multiplier::text, supports_stream, supports_tools, supports_vision,
+		       status, sort_order, created_at, updated_at
+	`, input.PublicName, input.Type, input.Group, input.BillingMode, input.InputPricePer1K, input.OutputPricePer1K, input.PricePerCall, input.CacheCreationPricePer1K, input.CacheReadPricePer1K, input.RateMultiplier, input.SupportsStream, input.SupportsTools, input.SupportsVision, input.Status, input.SortOrder)
 	return scanModel(row)
 }
 
@@ -226,13 +237,15 @@ func (r ModelRepository) Update(ctx context.Context, id string, input ModelInput
 		SET public_name=$2, type=$3, model_group=$4, billing_mode=$5,
 		    input_price_per_1k=$6::numeric, output_price_per_1k=$7::numeric, price_per_call=$8::numeric,
 		    cache_creation_price_per_1k=$9::numeric, cache_read_price_per_1k=$10::numeric,
-		    rate_multiplier=$11::numeric, status=$12, sort_order=$13, updated_at=now()
+		    rate_multiplier=$11::numeric, supports_stream=$12, supports_tools=$13, supports_vision=$14,
+		    status=$15, sort_order=$16, updated_at=now()
 		WHERE id=$1 AND deleted_at IS NULL
 		RETURNING id::text, public_name, type, model_group, billing_mode,
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
 		       cache_creation_price_per_1k::text, cache_read_price_per_1k::text,
-		       rate_multiplier::text, status, sort_order, created_at, updated_at
-	`, id, input.PublicName, input.Type, input.Group, input.BillingMode, input.InputPricePer1K, input.OutputPricePer1K, input.PricePerCall, input.CacheCreationPricePer1K, input.CacheReadPricePer1K, input.RateMultiplier, input.Status, input.SortOrder)
+		       rate_multiplier::text, supports_stream, supports_tools, supports_vision,
+		       status, sort_order, created_at, updated_at
+	`, id, input.PublicName, input.Type, input.Group, input.BillingMode, input.InputPricePer1K, input.OutputPricePer1K, input.PricePerCall, input.CacheCreationPricePer1K, input.CacheReadPricePer1K, input.RateMultiplier, input.SupportsStream, input.SupportsTools, input.SupportsVision, input.Status, input.SortOrder)
 	return scanModel(row)
 }
 
@@ -276,6 +289,9 @@ func scanModel(row modelScanner) (Model, error) {
 		&item.CacheCreationPricePer1K,
 		&item.CacheReadPricePer1K,
 		&item.RateMultiplier,
+		&item.SupportsStream,
+		&item.SupportsTools,
+		&item.SupportsVision,
 		&item.Status,
 		&item.SortOrder,
 		&item.CreatedAt,

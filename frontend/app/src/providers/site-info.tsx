@@ -1,5 +1,6 @@
 import React from "react";
 import { createAPI, type PublicSiteInfo } from "@lingshu/shared";
+import { setDeviceSecret } from "@/lib/fingerprint";
 
 type SiteInfoState = {
   siteInfo: PublicSiteInfo | null;
@@ -18,6 +19,7 @@ export function SiteInfoProvider({ children }: { children: React.ReactNode }) {
     try {
       const result = await createAPI().siteInfo();
       setSiteInfo(result);
+      setDeviceSecret(result.device_secret_key);
       applyBrandColor(result.brand_primary_color);
       document.title = result.site_name || "LingShu";
     } finally {

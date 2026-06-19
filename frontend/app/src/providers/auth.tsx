@@ -1,6 +1,7 @@
 import React from "react";
 import { createAPI } from "@lingshu/shared";
 import type { User } from "@lingshu/shared";
+import { getDeviceID } from "@/lib/fingerprint";
 
 const TOKEN_KEY = "lingshu_token";
 const LEGACY_USER_TOKEN_KEY = "lingshu_user_token";
@@ -34,6 +35,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<User | null>(null);
   const [authStatus, setAuthStatus] = React.useState<"checking" | "authenticated" | "anonymous">(() => (readInitialToken() ? "checking" : "anonymous"));
   const api = React.useMemo(() => createAPI(token), [token]);
+
+  React.useEffect(() => {
+    getDeviceID();
+  }, []);
 
   const logout = React.useCallback(() => {
     clearStoredTokens();

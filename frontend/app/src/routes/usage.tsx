@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
-import type { UserDailyStat, UserGatewayLog, UserLedgerRecord, UserModelStat } from "@lingshu/shared/user-types";
+import type { UserDailyStat, UserGatewayLog, UserLedgerRecord, UserModelStat } from "@lingshu/shared";
 
 import { Button, Card, CardContent, CardHeader, CardTitle, DataTable, Dialog, EmptyState, Input, PageHeader, TabsList, TabsTrigger, Tag, toast } from "@lingshu/ui";
 import { MeasuredChart } from "@/components/measured-chart";

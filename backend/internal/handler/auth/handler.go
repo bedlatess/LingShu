@@ -3,7 +3,6 @@ package auth
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"lingshu/backend/internal/middleware"
 	"lingshu/backend/internal/pkg/httpx"
@@ -11,11 +10,16 @@ import (
 )
 
 type Handler struct {
-	auth service.AuthService
+	auth      service.AuthService
+	blacklist *service.AccessBlacklistService
 }
 
-func New(authService service.AuthService) Handler {
-	return Handler{auth: authService}
+func New(authService service.AuthService, blacklist ...service.AccessBlacklistService) Handler {
+	handler := Handler{auth: authService}
+	if len(blacklist) > 0 {
+		handler.blacklist = &blacklist[0]
+	}
+	return handler
 }
 
 type loginRequest struct {
@@ -52,8 +56,16 @@ func (h Handler) Login(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, "invalid json")
 		return
 	}
-	result, err := h.auth.Login(r.Context(), req.Login, req.Password, clientIP(r), req.Captcha)
+	ip := clientIP(r)
+	deviceID := ""
+	if h.blacklist != nil {
+		deviceID = httpx.VerifiedDeviceID(r, h.blacklist.DeviceSecret(r.Context()))
+	}
+	result, err := h.auth.Login(r.Context(), req.Login, req.Password, ip, req.Captcha)
 	if err != nil {
+		if h.blacklist != nil {
+			h.blacklist.RecordLoginFailure(r.Context(), ip, deviceID)
+		}
 		status := http.StatusUnauthorized
 		if errors.Is(err, service.ErrUserDisabled) {
 			status = http.StatusForbidden
@@ -63,6 +75,9 @@ func (h Handler) Login(w http.ResponseWriter, r *http.Request) {
 		}
 		httpx.Error(w, status, err.Error())
 		return
+	}
+	if h.blacklist != nil {
+		h.blacklist.RecordLoginSuccess(r.Context(), ip, deviceID)
 	}
 	httpx.JSON(w, http.StatusOK, result)
 }
@@ -185,8 +200,5 @@ func writeAuthError(w http.ResponseWriter, err error) {
 }
 
 func clientIP(r *http.Request) string {
-	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-		return strings.TrimSpace(strings.Split(forwarded, ",")[0])
-	}
-	return r.RemoteAddr
+	return httpx.ClientIP(r, httpx.SettingsFromContext(r.Context()))
 }

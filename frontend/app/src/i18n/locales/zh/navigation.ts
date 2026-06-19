@@ -28,6 +28,7 @@ const navigation = {
     redeem: "兑换码",
     reports: "报表",
     audit: "审计日志",
+    blacklist: "访问黑名单",
     settings: "系统设置"
   }
 };

@@ -5,6 +5,7 @@ import type { APIKey, GatewayLog, LedgerRecord, User, createAPI } from "@lingshu
 import { Badge, Button, Card, CardContent, DataTable, Dialog, EmptyState, Input, PageHeader, Pagination, Select, StatCard, toast } from "@lingshu/ui";
 import { Activity, KeyRound, ShieldOff, TimerReset, WalletCards } from "lucide-react";
 import { downloadBlob, errText, exportCSV, fmtMoney, formatDateMinute, runWrite, statusVariant, type Pager } from "./admin-page-utils";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type AdminAPI = ReturnType<typeof createAPI>;
 
@@ -15,6 +16,7 @@ export function UsersPage({ api }: { api: AdminAPI }) {
   const [form, setForm] = React.useState({ username: "", email: "", password: "", role: "user" as "user" | "admin" });
   const [balanceTarget, setBalanceTarget] = React.useState<User | null>(null);
   const [balanceForm, setBalanceForm] = React.useState({ amount: "", remark: "" });
+  const [confirmBanTarget, setConfirmBanTarget] = React.useState<User | null>(null);
 
   async function refresh(page = pager.page) {
     const result = await api.listUsers(page, pager.limit);
@@ -76,13 +78,29 @@ export function UsersPage({ api }: { api: AdminAPI }) {
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="secondary" asChild><Link to={`/admin/users/${row.id}`}>{t("common.details")}</Link></Button>
                 <Button size="sm" variant="secondary" onClick={() => setBalanceTarget(row)}>{t("users.balanceAction")}</Button>
-                {row.status === "active" ? <Button size="sm" variant="destructive" onClick={() => runWrite(async () => { await api.banUser(row.id); toast.success(t("users.banSuccess")); await refresh(); }, t("users.banFailed"))}>{t("common.banned")}</Button> : null}
+                {row.status === "active" ? <Button size="sm" variant="destructive" onClick={() => setConfirmBanTarget(row)}>{t("common.banned")}</Button> : null}
               </div>
             )
           }
         ]}
       />
       <Pagination page={pager.page} limit={pager.limit} total={pager.total} onChange={(page) => setPager((prev) => ({ ...prev, page }))} />
+      <ConfirmDialog
+        open={Boolean(confirmBanTarget)}
+        title={t("users.confirmBanTitle")}
+        description={confirmBanTarget ? t("users.confirmBanDescription", { name: confirmBanTarget.username }) : ""}
+        confirmText={t("users.ban")}
+        cancelText={t("common.cancel")}
+        intent="danger"
+        onCancel={() => setConfirmBanTarget(null)}
+        onConfirm={() => runWrite(async () => {
+          if (!confirmBanTarget) return;
+          await api.banUser(confirmBanTarget.id);
+          toast.success(t("users.banSuccess"));
+          setConfirmBanTarget(null);
+          await refresh();
+        }, t("users.banFailed"))}
+      />
       <Dialog open={Boolean(balanceTarget)} title={balanceTarget ? t("users.adjustBalanceFor", { name: balanceTarget.username }) : t("users.adjustBalance")} onClose={() => setBalanceTarget(null)}>
         <form className="grid gap-4" onSubmit={adjustBalance}>
           <label className="grid gap-2 text-sm">{t("common.amount")}<Input value={balanceForm.amount} onChange={(e) => setBalanceForm({ ...balanceForm, amount: e.target.value })} placeholder={t("users.amountHelp")} required /></label>
@@ -108,6 +126,7 @@ export function UserDetailPage({ api }: { api: AdminAPI }) {
   const [passwordOpen, setPasswordOpen] = React.useState(false);
   const [newPassword, setNewPassword] = React.useState("");
   const [limits, setLimits] = React.useState({ rpm_limit: 0, concurrency_limit: 0 });
+  const [confirmAction, setConfirmAction] = React.useState<"ban" | "revoke" | null>(null);
 
   async function refresh() {
     if (!id) return;
@@ -180,9 +199,9 @@ export function UserDetailPage({ api }: { api: AdminAPI }) {
           <div className="flex flex-wrap items-end gap-2">
             <Button variant="secondary" onClick={() => setBalanceOpen(true)}>{t("users.balanceAction")}</Button>
             <Button variant="secondary" onClick={() => setPasswordOpen(true)}>{t("users.resetPassword")}</Button>
-            <Button variant="secondary" onClick={() => runWrite(async () => { await api.revokeUserTokens(user.id); toast.success(t("users.revokeSuccess")); await refresh(); }, t("users.revokeFailed"))}><TimerReset className="size-4" />{t("users.revokeTokens")}</Button>
+            <Button variant="secondary" onClick={() => setConfirmAction("revoke")}><TimerReset className="size-4" />{t("users.revokeTokens")}</Button>
             {user.status === "active" ? (
-              <Button variant="destructive" onClick={() => runWrite(async () => { await api.banUser(user.id); toast.success(t("users.banSuccess")); await refresh(); }, t("users.banFailed"))}><ShieldOff className="size-4" />{t("users.ban")}</Button>
+              <Button variant="destructive" onClick={() => setConfirmAction("ban")}><ShieldOff className="size-4" />{t("users.ban")}</Button>
             ) : (
               <Button variant="secondary" onClick={() => runWrite(async () => { await api.unbanUser(user.id); toast.success(t("users.unbanSuccess")); await refresh(); }, t("users.unbanFailed"))}>{t("users.unban")}</Button>
             )}
@@ -221,6 +240,7 @@ export function UserDetailPage({ api }: { api: AdminAPI }) {
           { key: "status", title: t("common.status") },
           { key: "base_cost", title: t("common.cost"), render: (row) => fmtMoney(row.base_cost) },
           { key: "charge", title: t("common.charge"), render: (row) => fmtMoney(row.charge) },
+          { key: "client_ip", title: "IP", render: (row) => row.client_ip || "-" },
           { key: "created_at", title: t("common.time"), render: (row) => formatDateMinute(row.created_at) }
         ]}
       />
@@ -237,6 +257,36 @@ export function UserDetailPage({ api }: { api: AdminAPI }) {
           <div className="flex justify-end gap-2"><Button variant="secondary" type="button" onClick={() => setPasswordOpen(false)}>{t("common.cancel")}</Button><Button type="submit">{t("users.confirmResetPassword")}</Button></div>
         </form>
       </Dialog>
+      <ConfirmDialog
+        open={confirmAction === "revoke"}
+        title={t("users.confirmRevokeTitle")}
+        description={t("users.confirmRevokeDescription", { name: user.username })}
+        confirmText={t("users.revokeTokens")}
+        cancelText={t("common.cancel")}
+        intent="danger"
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => runWrite(async () => {
+          await api.revokeUserTokens(user.id);
+          toast.success(t("users.revokeSuccess"));
+          setConfirmAction(null);
+          await refresh();
+        }, t("users.revokeFailed"))}
+      />
+      <ConfirmDialog
+        open={confirmAction === "ban"}
+        title={t("users.confirmBanTitle")}
+        description={t("users.confirmBanDescription", { name: user.username })}
+        confirmText={t("users.ban")}
+        cancelText={t("common.cancel")}
+        intent="danger"
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => runWrite(async () => {
+          await api.banUser(user.id);
+          toast.success(t("users.banSuccess"));
+          setConfirmAction(null);
+          await refresh();
+        }, t("users.banFailed"))}
+      />
     </div>
   );
 }

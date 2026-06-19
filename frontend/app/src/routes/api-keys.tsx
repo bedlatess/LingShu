@@ -2,16 +2,18 @@ import React from "react";
 import { BookOpen, Copy, KeyRound, Link as LinkIcon, Pencil, Plus, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import type { APIKey, CreatedAPIKey } from "@lingshu/shared/user-types";
+import type { APIKey, CreatedAPIKey } from "@lingshu/shared";
 
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, DataTable, Dialog, EmptyState, Input, PageHeader, toast } from "@lingshu/ui";
 import { copyText } from "@/lib/clipboard";
 import { useAuth } from "@/providers/auth";
 import { trStatus } from "@/lib/i18n";
+import { useSiteInfo } from "@/providers/site-info";
 
 export function ApiKeysPage() {
   const { t, i18n } = useTranslation("keys");
   const { api } = useAuth();
+  const { siteInfo } = useSiteInfo();
   const [items, setItems] = React.useState<APIKey[]>([]);
   const [name, setName] = React.useState("");
   const [allowAll, setAllowAll] = React.useState(true);
@@ -21,7 +23,7 @@ export function ApiKeysPage() {
   const [editName, setEditName] = React.useState("");
   const [editAllowAll, setEditAllowAll] = React.useState(true);
   const [editEndpoints, setEditEndpoints] = React.useState<string[]>([]);
-  const baseURL = React.useMemo(() => `${window.location.origin}/v1`, []);
+  const baseURL = React.useMemo(() => normalizedBaseURL(siteInfo?.api_base_url), [siteInfo?.api_base_url]);
 
   async function refresh() {
     const result = await api.userAPIKeys();
@@ -145,6 +147,12 @@ export function ApiKeysPage() {
       </Dialog>
     </div>
   );
+}
+
+function normalizedBaseURL(configured?: string) {
+  const value = configured?.trim();
+  if (value) return value.replace(/\/$/, "");
+  return `${window.location.origin}/v1`;
 }
 
 const endpointOptions = [

@@ -2,17 +2,19 @@ import React from "react";
 import { Activity, Boxes, Clock, Copy, CreditCard, Terminal, WalletCards } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Area, AreaChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
-import type { UserDailyStat } from "@lingshu/shared/user-types";
+import type { UserDailyStat } from "@lingshu/shared";
 
 import { Button, Card, CardContent, CardHeader, CardTitle, EmptyState, PageHeader, Progress, StatCard, Tabs, toast } from "@lingshu/ui";
 import { MeasuredChart } from "@/components/measured-chart";
 import { useAuth } from "@/providers/auth";
+import { useSiteInfo } from "@/providers/site-info";
 import { formatMoney } from "@/lib/utils";
 import { copyText } from "@/lib/clipboard";
 
 export function DashboardPage() {
   const { t } = useTranslation("dashboard");
   const { api } = useAuth();
+  const { siteInfo } = useSiteInfo();
   const [dashboard, setDashboard] = React.useState<Awaited<ReturnType<typeof api.userDashboard>> | null>(null);
   const [daily, setDaily] = React.useState<UserDailyStat[]>([]);
   const [configTab, setConfigTab] = React.useState("claude");
@@ -59,7 +61,7 @@ export function DashboardPage() {
           <CardHeader><CardTitle>{t("quickConfig.title")}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <Tabs tabs={[{ value: "claude", label: t("quickConfig.claude") }, { value: "codex", label: t("quickConfig.codex") }]} value={configTab} onChange={setConfigTab} />
-            <ConfigSnippet value={configTab === "claude" ? claudeSnippet() : codexSnippet()} copiedText={t("quickConfig.copied")} copyLabel={t("quickConfig.copy")} />
+            <ConfigSnippet value={configTab === "claude" ? claudeSnippet(apiBaseURL(siteInfo?.api_base_url)) : codexSnippet(apiBaseURL(siteInfo?.api_base_url))} copiedText={t("quickConfig.copied")} copyLabel={t("quickConfig.copy")} />
             <p className="text-xs leading-5 text-muted-foreground">{t("quickConfig.description")}</p>
           </CardContent>
         </Card>
@@ -104,22 +106,24 @@ function quotaPercent(used?: string, granted?: string) {
   return Math.max(0, Math.min(100, (usedValue / grantedValue) * 100));
 }
 
-function baseURL() {
+function apiBaseURL(configured?: string) {
+  const value = configured?.trim();
+  if (value) return value.replace(/\/$/, "");
   return `${window.location.origin}/v1`;
 }
 
-function claudeSnippet() {
+function claudeSnippet(baseURL: string) {
   return [
-    `export ANTHROPIC_BASE_URL="${baseURL()}"`,
+    `export ANTHROPIC_BASE_URL="${baseURL}"`,
     `export ANTHROPIC_API_KEY="ls-your-api-key"`,
     "",
     "claude"
   ].join("\n");
 }
 
-function codexSnippet() {
+function codexSnippet(baseURL: string) {
   return [
-    `export OPENAI_BASE_URL="${baseURL()}"`,
+    `export OPENAI_BASE_URL="${baseURL}"`,
     `export OPENAI_API_KEY="ls-your-api-key"`,
     "",
     "codex"

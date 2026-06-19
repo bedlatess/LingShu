@@ -24,6 +24,9 @@ type UserModelPrice struct {
 	OutputPricePer1K string `json:"-"`
 	PricePerCall     string `json:"-"`
 	RateMultiplier   string `json:"-"`
+	SupportsStream   bool   `json:"supports_stream"`
+	SupportsTools    bool   `json:"supports_tools"`
+	SupportsVision   bool   `json:"supports_vision"`
 	InputUnitPrice   string `json:"input_unit_price"`
 	OutputUnitPrice  string `json:"output_unit_price"`
 	CallUnitPrice    string `json:"call_unit_price"`
@@ -66,6 +69,9 @@ func (s UserPortalService) Models(ctx context.Context) ([]UserModelPrice, error)
 			OutputPricePer1K: item.OutputPricePer1K,
 			PricePerCall:     item.PricePerCall,
 			RateMultiplier:   item.RateMultiplier,
+			SupportsStream:   item.SupportsStream,
+			SupportsTools:    item.SupportsTools,
+			SupportsVision:   item.SupportsVision,
 			InputUnitPrice:   decimalMul(item.InputPricePer1K, item.RateMultiplier),
 			OutputUnitPrice:  decimalMul(item.OutputPricePer1K, item.RateMultiplier),
 			CallUnitPrice:    decimalMul(item.PricePerCall, item.RateMultiplier),

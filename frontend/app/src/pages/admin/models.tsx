@@ -53,7 +53,7 @@ export function ModelsPage({ api }: { api: AdminAPI }) {
         <CardContent className="grid gap-3 p-5">
           <form className="grid gap-3 xl:grid-cols-4" onSubmit={create}>
             <Input placeholder={t("models.publicName")} value={form.public_name} onChange={(e) => setForm({ ...form, public_name: e.target.value })} required />
-            <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}><option value="chat">{t("models.types.chat")}</option><option value="embedding">{t("models.types.embedding")}</option><option value="image">{t("models.types.image")}</option></Select>
+            <Select value={form.type} onChange={(e) => setForm({ ...form, ...capabilitiesForType(e.target.value), type: e.target.value })}><option value="chat">{t("models.types.chat")}</option><option value="embedding">{t("models.types.embedding")}</option><option value="image">{t("models.types.image")}</option></Select>
             <Select value={form.billing_mode} onChange={(e) => setForm({ ...form, billing_mode: e.target.value })}><option value="token">{t("models.billing.token")}</option><option value="per_call">{t("models.billing.per_call")}</option></Select>
             <Button type="submit">{t("models.createModel")}</Button>
           </form>
@@ -68,6 +68,7 @@ export function ModelsPage({ api }: { api: AdminAPI }) {
           { key: "billing_mode", title: t("common.charge") },
           { key: "input_price_per_1k", title: t("models.inputPrice"), render: (row) => fmtMoney(row.input_price_per_1k) },
           { key: "output_price_per_1k", title: t("models.outputPrice"), render: (row) => fmtMoney(row.output_price_per_1k) },
+          { key: "capabilities", title: t("models.capabilities.short"), render: (row) => <CapabilityBadges model={row} /> },
           { key: "rate_multiplier", title: t("common.multiplier") },
           { key: "status", title: t("common.status"), render: (row) => <Badge variant={statusVariant(row.status)}>{row.status}</Badge> },
           { key: "actions", title: t("common.actions"), render: (row) => <div className="flex gap-2"><Button size="sm" variant="secondary" onClick={() => { setEditing(row); setEditForm(row); }}>{t("common.edit")}</Button><Button size="sm" variant="destructive" onClick={() => runWrite(async () => { await api.deleteModel(row.id); await refresh(); }, t("models.deleteFailed"))}>{t("common.delete")}</Button></div> }
@@ -82,6 +83,25 @@ export function ModelsPage({ api }: { api: AdminAPI }) {
       </Dialog>
     </div>
   );
+}
+
+function capabilitiesForType(type: string) {
+  return {
+    supports_stream: type === "chat",
+    supports_tools: type === "chat",
+    supports_vision: type === "image" || type === "video"
+  };
+}
+
+function CapabilityBadges({ model }: { model: ModelConfig }) {
+  const { t } = useTranslation("admin");
+  const items = [
+    model.supports_stream ? t("models.capabilities.stream") : "",
+    model.supports_tools ? t("models.capabilities.tools") : "",
+    model.supports_vision ? t("models.capabilities.vision") : ""
+  ].filter(Boolean);
+  if (!items.length) return <span className="text-muted-foreground">-</span>;
+  return <div className="flex flex-wrap gap-1">{items.map((item) => <Badge key={item} variant="muted">{item}</Badge>)}</div>;
 }
 
 export function ModelDetailPage({ api }: { api: AdminAPI }) {

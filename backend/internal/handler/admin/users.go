@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"net"
 	"net/http"
 	"strings"
 
@@ -168,11 +167,11 @@ func (h UserHandler) UserLogs(w http.ResponseWriter, r *http.Request) {
 func (h UserHandler) ExportUserUsageCSV(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "id")
 	writer := csvResponse(w, "admin-user-usage.csv")
-	if err := writer.Write([]string{"request_id", "user_id", "model_id", "status", "http_status", "total_tokens", "base_cost", "charge", "created_at"}); err != nil {
+	if err := writer.Write([]string{"request_id", "user_id", "model_id", "status", "http_status", "total_tokens", "base_cost", "charge", "client_ip", "created_at"}); err != nil {
 		return
 	}
 	err := h.reports.ExportUserLogs(r.Context(), userID, func(item repository.GatewayLog) error {
-		return writer.Write([]string{item.RequestID, item.UserID, item.ModelID, item.Status, intString(item.HTTPStatus), intString(item.TotalTokens), item.BaseCost, item.Charge, item.CreatedAt.Format(timeFormatCSV)})
+		return writer.Write([]string{item.RequestID, item.UserID, item.ModelID, item.Status, intString(item.HTTPStatus), intString(item.TotalTokens), item.BaseCost, item.Charge, item.ClientIP, item.CreatedAt.Format(timeFormatCSV)})
 	})
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())
@@ -226,12 +225,5 @@ func (h UserHandler) AuditCount(w http.ResponseWriter, r *http.Request) {
 }
 
 func clientIP(r *http.Request) string {
-	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-		return strings.TrimSpace(strings.Split(forwarded, ",")[0])
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
+	return httpx.ClientIP(r, httpx.SettingsFromContext(r.Context()))
 }

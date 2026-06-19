@@ -1,11 +1,11 @@
-﻿import type { APIKey, AdminDashboard, Announcement, AuditLog, Channel, ChannelDetectResult, ChannelDetail, ChannelPreset, CreatedAPIKey, DailyStat, GatewayLog, HealthResponse, LedgerRecord, LoginResponse, ModelConfig, ModelDetail, ModelStat, RedeemCode, RedeemRecord, ReportRow, SystemSetting, User } from "./admin-types";
-import type { ChannelModelImportInput, ChannelModelImportResult, ChannelModelSyncResult, CleanupHistoryEntry, CleanupResult, OpsDashboard, PaginatedResponse, PublicModel, PublicSiteInfo } from "./types";
-import type { UserDashboard, UserGatewayLog, UserLedgerRecord, UserModelConfig } from "./user-types";
+import type { APIKey, AccessBlacklistEntry, AdminDashboard, Announcement, AuditLog, Channel, ChannelDetectResult, ChannelDetail, ChannelModelImportInput, ChannelModelImportResult, ChannelModelSyncResult, ChannelPreset, CleanupHistoryEntry, CleanupResult, CreatedAPIKey, DailyStat, GatewayLog, HealthResponse, LedgerRecord, LoginResponse, ModelConfig, ModelDetail, ModelStat, OpsDashboard, PaginatedResponse, PublicModel, PublicSiteInfo, RedeemCode, RedeemRecord, ReportRow, SystemSetting, User, UserDashboard, UserGatewayLog, UserLedgerRecord, UserModelConfig } from "./types";
 
 const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
 const apiBaseURL = env?.VITE_API_BASE_URL ?? "http://localhost:8080";
 const unauthorizedEvent = "lingshu:unauthorized";
 const requestTimeoutMs = Number(env?.VITE_API_TIMEOUT_MS ?? 30000);
+const deviceIDKey = "lingshu_device_id";
+const deviceSecretKey = "lingshu_device_secret_key";
 
 function withQuery(path: string, query?: Record<string, string | number | undefined>) {
   if (!query) return path;
@@ -34,6 +34,12 @@ export function createAPI(token?: string) {
 
   async function download(path: string): Promise<Blob> {
     const headers = new Headers();
+    const deviceID = getDeviceID();
+    if (deviceID) {
+      headers.set("X-Device-Id", deviceID);
+      const sign = await deviceSignature(deviceID);
+      if (sign) headers.set("X-Device-Sign", sign);
+    }
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
     }
@@ -63,6 +69,12 @@ export function createAPI(token?: string) {
   async function requestOnce<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers = new Headers(init.headers);
     headers.set("Content-Type", "application/json");
+    const deviceID = getDeviceID();
+    if (deviceID) {
+      headers.set("X-Device-Id", deviceID);
+      const sign = await deviceSignature(deviceID);
+      if (sign) headers.set("X-Device-Sign", sign);
+    }
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
     }
@@ -212,6 +224,17 @@ export function createAPI(token?: string) {
       request<{ items: SystemSetting[] }>("/api/admin/settings", {
         method: "PATCH",
         body: JSON.stringify({ items })
+      }),
+    listBlacklist: (page?: number, limit?: number, filters?: { kind?: string; scope?: string; active?: string; q?: string }) =>
+      request<PaginatedResponse<AccessBlacklistEntry>>(withQuery("/api/admin/blacklist", { page, limit, ...filters })),
+    createBlacklistEntry: (payload: { kind: "ip" | "cidr" | "device"; value: string; scope: "login" | "gateway" | "all"; reason: string; permanent?: boolean; expires_at?: string }) =>
+      request<AccessBlacklistEntry>("/api/admin/blacklist", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      }),
+    releaseBlacklistEntry: (id: string) =>
+      request<AccessBlacklistEntry>(`/api/admin/blacklist/${id}/release`, {
+        method: "POST"
       }),
     runCleanup: () =>
       request<{ items: CleanupResult[] }>("/api/admin/cleanup/run", {
@@ -389,4 +412,42 @@ function errorMessageFromBody(body: unknown, fallback: string) {
 function isRetryableError(err: unknown) {
   if (!(err instanceof Error)) return false;
   return err.message === "请求超时，请稍后重试" || err.message === "Failed to fetch" || err.message.includes("NetworkError");
+}
+
+function getDeviceID() {
+  if (typeof window === "undefined") return "";
+  const existing = window.localStorage.getItem(deviceIDKey);
+  if (existing) return existing;
+  const id = `dev_${randomID()}_${browserHint()}`;
+  window.localStorage.setItem(deviceIDKey, id);
+  return id;
+}
+
+async function deviceSignature(deviceID: string) {
+  if (typeof window === "undefined" || !globalThis.crypto?.subtle) return "";
+  const secret = window.localStorage.getItem(deviceSecretKey)?.trim();
+  if (!secret) return "";
+  const encoder = new TextEncoder();
+  const key = await globalThis.crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const signature = await globalThis.crypto.subtle.sign("HMAC", key, encoder.encode(deviceID + navigator.userAgent));
+  return Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function randomID() {
+  const webCrypto = globalThis.crypto;
+  if (webCrypto?.randomUUID) {
+    return webCrypto.randomUUID();
+  }
+  const bytes = new Uint8Array(16);
+  if (webCrypto?.getRandomValues) {
+    webCrypto.getRandomValues(bytes);
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function browserHint() {
+  if (typeof navigator === "undefined" || typeof screen === "undefined") return "browser";
+  const raw = [navigator.language, screen.width, screen.height, screen.colorDepth].filter(Boolean).join("-");
+  return raw.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 24);
 }

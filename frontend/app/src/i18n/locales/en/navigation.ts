@@ -28,6 +28,7 @@ const navigation = {
     redeem: "Redeem Codes",
     reports: "Reports",
     audit: "Audit Logs",
+    blacklist: "Access Blacklist",
     settings: "System Settings"
   }
 };

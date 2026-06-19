@@ -50,11 +50,11 @@ func (h ReportHandler) Ledger(w http.ResponseWriter, r *http.Request) {
 
 func (h ReportHandler) ExportUsageCSV(w http.ResponseWriter, r *http.Request) {
 	writer := csvResponse(w, "admin-usage.csv")
-	if err := writer.Write([]string{"request_id", "user_id", "model_id", "status", "http_status", "total_tokens", "base_cost", "charge", "created_at"}); err != nil {
+	if err := writer.Write([]string{"request_id", "user_id", "model_id", "status", "http_status", "total_tokens", "base_cost", "charge", "client_ip", "created_at"}); err != nil {
 		return
 	}
 	err := h.reports.ExportAdminLogs(r.Context(), func(item repository.GatewayLog) error {
-		return writer.Write([]string{item.RequestID, item.UserID, item.ModelID, item.Status, intString(item.HTTPStatus), intString(item.TotalTokens), item.BaseCost, item.Charge, item.CreatedAt.Format(timeFormatCSV)})
+		return writer.Write([]string{item.RequestID, item.UserID, item.ModelID, item.Status, intString(item.HTTPStatus), intString(item.TotalTokens), item.BaseCost, item.Charge, item.ClientIP, item.CreatedAt.Format(timeFormatCSV)})
 	})
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())

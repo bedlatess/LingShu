@@ -1,4 +1,5 @@
 export * from "./lib/cn";
+export * from "./lib/clipboard";
 export * from "./components/button";
 export * from "./components/card";
 export * from "./components/command";

@@ -19,6 +19,7 @@ import (
 	userhandler "lingshu/backend/internal/handler/user"
 	"lingshu/backend/internal/job"
 	"lingshu/backend/internal/middleware"
+	"lingshu/backend/internal/pkg/httpx"
 	redisstore "lingshu/backend/internal/redis"
 	"lingshu/backend/internal/repository"
 	"lingshu/backend/internal/service"
@@ -41,6 +42,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 	redeemRepo := repository.NewRedeemRepository(db)
 	reportRepo := repository.NewReportRepository(db)
 	settingsRepo := repository.NewSettingsRepository(db)
+	blacklistRepo := repository.NewAccessBlacklistRepository(db)
 	frozenStore := redisstore.NewFrozenStore(redisClient)
 	emailService := service.NewEmailService(settingsRepo, redisClient)
 	captchaService := service.NewCaptchaService(settingsRepo)
@@ -58,13 +60,14 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 	opsAlertService := service.NewOpsAlertService(db, settingsRepo, auditRepo, notificationService)
 	userPortalService := service.NewUserPortalService(userRepo, modelRepo, reportRepo, frozenStore)
 	settingsService := service.NewSettingsService(settingsRepo, auditRepo)
+	blacklistService := service.NewAccessBlacklistService(blacklistRepo, settingsRepo, auditRepo, redisClient)
 	cleaner := job.NewCleaner(db, redisClient, job.CleanerConfig{
 		LogRetentionDays:      cfg.CleanupLogRetentionDays,
 		AuditRetentionDays:    cfg.CleanupAuditRetentionDays,
 		AnnouncementGraceDays: cfg.CleanupAnnouncementGraceDays,
 		RedeemGraceDays:       cfg.CleanupRedeemGraceDays,
 	})
-	authHandler := authhandler.New(authService)
+	authHandler := authhandler.New(authService, blacklistService)
 	adminUsers := adminhandler.NewUserHandler(adminUserService, apiKeyService, reportService)
 	adminKeys := adminhandler.NewAPIKeyHandler(apiKeyService)
 	adminModels := adminhandler.NewModelHandler(modelService)
@@ -76,6 +79,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 	adminOps := adminhandler.NewOpsHandler(opsService, opsAlertService)
 	adminSettings := adminhandler.NewSettingsHandler(settingsService, auditRepo)
 	adminCleanup := adminhandler.NewCleanupHandler(cleaner)
+	adminBlacklist := adminhandler.NewBlacklistHandler(blacklistService)
 	userReports := userhandler.NewReportHandler(reportService)
 	gatewayHandler := gatewayhandler.New(gatewayService)
 	publicHandler := publichandler.New(db)
@@ -88,12 +92,15 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 	job.NewOpsAlertScheduler(opsAlertService, time.Minute).Start(context.Background())
 
 	r := chi.NewRouter()
+	r.Use(httpx.WithSettings(settingsRepo))
 	r.Use(corsWith(cfg.AllowedOrigins))
 	r.Get("/healthz", s.healthz)
 	r.Get("/api/public/models", publicHandler.ListModels)
 	r.Get("/api/public/site-info", publicHandler.SiteInfo)
+	r.Get("/site-config", publicHandler.SiteInfo)
 	r.Get("/api/public/legal/{slug}", publicHandler.Legal)
 	r.Route("/api/auth", func(r chi.Router) {
+		r.Use(middleware.AccessBlacklist(blacklistService, "login"))
 		r.Post("/login", authHandler.Login)
 		r.Post("/logout", authHandler.Logout)
 		r.Post("/email/send-code", authHandler.SendEmailCode)
@@ -120,6 +127,9 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 		r.Get("/reports/by-channel", adminReports.ByChannel)
 		r.Get("/settings", adminSettings.List)
 		r.Patch("/settings", adminSettings.Patch)
+		r.Get("/blacklist", adminBlacklist.List)
+		r.Post("/blacklist", adminBlacklist.Create)
+		r.Post("/blacklist/{id}/release", adminBlacklist.Release)
 		r.Post("/cleanup/run", adminCleanup.Run)
 		r.Get("/cleanup/history", adminCleanup.History)
 		r.Get("/users", adminUsers.List)
@@ -183,7 +193,10 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 		r.Patch("/api-keys/{id}", userHandler.UpdateAPIKey)
 		r.Delete("/api-keys/{id}", userHandler.DeleteAPIKey)
 		r.Get("/announcements", userHandler.Announcements)
-		r.Post("/redeem", userHandler.Redeem)
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.AccessBlacklist(blacklistService, "login"))
+			r.Post("/redeem", userHandler.Redeem)
+		})
 		r.Get("/usage/logs", userReports.Logs)
 		r.Get("/usage/export.csv", userReports.ExportUsageCSV)
 		r.Get("/usage/ledger", userReports.Ledger)
@@ -192,6 +205,7 @@ func New(cfg config.Config, db *pgxpool.Pool, redisClient *redis.Client) http.Ha
 	})
 	r.Route("/v1", func(r chi.Router) {
 		r.Use(middleware.MaxBody(gatewayMaxBodyBytes(cfg.GatewayMaxBodyBytes)))
+		r.Use(middleware.AccessBlacklist(blacklistService, "gateway"))
 		r.Use(middleware.APIKeyAuth(apiKeyRepo))
 		r.Get("/models", gatewayHandler.Models)
 		r.Post("/chat/completions", gatewayHandler.ChatCompletions)
@@ -221,7 +235,7 @@ func corsWith(allowed []string) func(http.Handler) http.Handler {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Vary", "Origin")
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
-				w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+				w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Device-Id, X-Device-Sign")
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 			}
 			if r.Method == http.MethodOptions {

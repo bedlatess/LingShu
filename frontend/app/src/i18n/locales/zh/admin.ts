@@ -180,6 +180,13 @@ const admin = {
     outputCost: "输出成本/1K",
     cacheCreateCost: "缓存写入成本/1K",
     cacheReadCost: "缓存读取成本/1K",
+    capabilities: {
+      title: "能力开关",
+      short: "能力",
+      stream: "流式",
+      tools: "工具调用",
+      vision: "视觉"
+    },
     types: {
       chat: "对话",
       embedding: "向量",
@@ -267,6 +274,21 @@ const admin = {
     title: "系统设置",
     description: "维护网关运行参数与清理任务。",
     configItems: "配置项",
+    tabs: {
+      general: "通用",
+      alerts: "告警"
+    },
+    alerts: {
+      title: "告警规则",
+      enabled: "启用告警",
+      channelFailureThreshold: "渠道连续失败阈值",
+      gateway5xxRateThreshold: "网关 5xx 比例阈值",
+      upstreamErrorRateThreshold: "上游 401/429 比例阈值",
+      lowBalanceThreshold: "用户低余额阈值",
+      emailRecipients: "邮件收件人",
+      webhookURL: "Webhook 地址",
+      webhookProvider: "IM 类型"
+    },
     saveSettings: "保存设置",
     saveSuccess: "设置已保存",
     saveFailed: "保存设置失败",
@@ -332,6 +354,10 @@ const admin = {
     revokeTokens: "\u5f3a\u5236\u4e0b\u7ebf",
     revokeSuccess: "\u5df2\u5f3a\u5236\u4e0b\u7ebf",
     revokeFailed: "\u5f3a\u5236\u4e0b\u7ebf\u5931\u8d25",
+    confirmBanTitle: "确认封禁",
+    confirmBanDescription: "确定封禁 {{name}} 吗？解封前该用户将无法登录，也无法继续使用 API Key。",
+    confirmRevokeTitle: "确认强制下线",
+    confirmRevokeDescription: "确定吊销 {{name}} 当前所有登录态吗？用户需要重新登录。",
   },
   apiKeys: {
     eyebrow: "API Keys",
@@ -369,6 +395,62 @@ const admin = {
       actor: "操作者",
       ip: "IP",
       createdAt: "时间"
+    }
+  },
+  blacklist: {
+    eyebrow: "安全",
+    title: "访问黑名单",
+    description: "按 IP、CIDR 或设备指纹拦截登录、兑换和网关访问。",
+    createTitle: "新增封禁规则",
+    create: "新增规则",
+    createSuccess: "封禁规则已创建",
+    createFailed: "创建封禁规则失败",
+    confirmCreateTitle: "确认封禁",
+    confirmCreateDescription: "确定将 {{value}} 加入访问黑名单吗？",
+    release: "解封",
+    releaseSuccess: "已解封",
+    releaseFailed: "解封失败",
+    confirmReleaseTitle: "确认解封",
+    confirmReleaseDescription: "确定将 {{value}} 从访问黑名单中解封吗？",
+    kind: "类型",
+    device: "设备",
+    scope: "范围",
+    value: "值",
+    valueHint: "填写单个 IP、CIDR 网段或设备 ID。",
+    reason: "原因",
+    permanent: "永久封禁",
+    permanentHint: "建议保持关闭，默认 7 天后过期，降低误封风险。",
+    expiresAt: "过期时间",
+    expiresHint: "留空则使用默认 7 天过期。",
+    search: "搜索值或原因",
+    allKinds: "全部类型",
+    allScopes: "全部范围",
+    activeOnly: "仅有效",
+    releasedOnly: "仅已解封",
+    allStatus: "全部状态",
+    active: "有效",
+    released: "已解封",
+    never: "永不过期",
+    emptyTitle: "暂无黑名单",
+    emptyDescription: "手动或自动封禁规则会显示在这里。",
+    scopes: {
+      all: "全部",
+      login: "登录与兑换",
+      gateway: "网关"
+    },
+    sources: {
+      manual: "手动",
+      auto: "自动"
+    },
+    table: {
+      kind: "类型",
+      value: "值",
+      scope: "范围",
+      source: "来源",
+      status: "状态",
+      expiresAt: "过期",
+      createdAt: "创建",
+      actions: "操作"
     }
   }
 };

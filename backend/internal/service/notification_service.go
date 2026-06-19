@@ -38,7 +38,7 @@ func NewNotificationService(settings repository.SettingsRepository) Notification
 
 func (s NotificationService) SendAlert(ctx context.Context, alert AlertNotification) error {
 	settings, err := s.settings.GetMap(ctx,
-		"alert_email_recipients", "alert_webhook_url",
+		"alert_email_recipients", "alert_webhook_url", "alert_webhook_provider",
 		"smtp_host", "smtp_port", "smtp_user", "smtp_pass", "smtp_from", "smtp_tls",
 	)
 	if err != nil {
@@ -51,7 +51,8 @@ func (s NotificationService) SendAlert(ctx context.Context, alert AlertNotificat
 		}
 	}
 	if webhook := strings.TrimSpace(settings["alert_webhook_url"]); webhook != "" {
-		if err := s.sendWebhook(ctx, webhook, alert); err != nil {
+		provider := strings.TrimSpace(settings["alert_webhook_provider"])
+		if err := s.sendWebhook(ctx, webhook, provider, alert); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -83,8 +84,8 @@ func (s NotificationService) sendEmail(settings map[string]string, recipients []
 	return smtp.SendMail(addr, auth, from, recipients, []byte(message))
 }
 
-func (s NotificationService) sendWebhook(ctx context.Context, webhook string, alert AlertNotification) error {
-	payload, err := json.Marshal(alert)
+func (s NotificationService) sendWebhook(ctx context.Context, webhook, provider string, alert AlertNotification) error {
+	payload, err := json.Marshal(formatAlertWebhookPayload(provider, alert))
 	if err != nil {
 		return err
 	}
@@ -102,6 +103,81 @@ func (s NotificationService) sendWebhook(ctx context.Context, webhook string, al
 		return fmt.Errorf("webhook returned %s", resp.Status)
 	}
 	return nil
+}
+
+func formatAlertWebhookPayload(provider string, alert AlertNotification) any {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	if provider == "" {
+		provider = "generic"
+	}
+	text := fmt.Sprintf("**%s**\n\n%s\n\nSeverity: %s\nRule: %s\nTarget: %s/%s", alert.Title, alert.Message, alert.Severity, alert.RuleKey, alert.TargetType, alert.TargetID)
+	switch provider {
+	case "wechat", "wecom", "qyweixin":
+		return map[string]any{
+			"msgtype": "markdown",
+			"markdown": map[string]string{
+				"content": strings.ReplaceAll(text, "**", ""),
+			},
+		}
+	case "feishu", "lark":
+		return map[string]any{
+			"msg_type": "interactive",
+			"card": map[string]any{
+				"header": map[string]any{
+					"title":    map[string]string{"tag": "plain_text", "content": alert.Title},
+					"template": severityTemplate(alert.Severity),
+				},
+				"elements": []map[string]any{
+					{"tag": "div", "text": map[string]string{"tag": "lark_md", "content": text}},
+				},
+			},
+		}
+	case "dingtalk":
+		return map[string]any{
+			"msgtype": "markdown",
+			"markdown": map[string]string{
+				"title": alert.Title,
+				"text":  text,
+			},
+		}
+	case "discord":
+		return map[string]any{
+			"embeds": []map[string]any{{
+				"title":       alert.Title,
+				"description": alert.Message,
+				"color":       severityColor(alert.Severity),
+				"fields": []map[string]string{
+					{"name": "Severity", "value": alert.Severity, "inline": "true"},
+					{"name": "Rule", "value": alert.RuleKey, "inline": "true"},
+					{"name": "Target", "value": alert.TargetType + "/" + alert.TargetID, "inline": "false"},
+				},
+			}},
+		}
+	default:
+		return alert
+	}
+}
+
+func severityTemplate(severity string) string {
+	switch strings.ToLower(severity) {
+	case "critical":
+		return "red"
+	case "warning":
+		return "orange"
+	default:
+		return "blue"
+	}
+}
+
+func severityColor(severity string) int {
+	switch strings.ToLower(severity) {
+	case "critical":
+		return 0xD92D20
+	case "warning":
+		return 0xDC6803
+	default:
+		return 0x1570EF
+	}
 }
 
 func splitRecipients(value string) []string {

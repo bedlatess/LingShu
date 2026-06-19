@@ -47,6 +47,7 @@ export function ReportsPage({ api }: { api: AdminAPI }) {
           columns={[
             { key: "request_id", title: t("common.request") },
             { key: "model_id", title: t("common.model") },
+            { key: "client_ip", title: "IP", render: (row) => row.client_ip || "-" },
             { key: "base_cost", title: t("common.cost"), render: (row) => fmtMoney(row.base_cost) },
             { key: "charge", title: t("common.charge"), render: (row) => fmtMoney(row.charge) },
             { key: "created_at", title: t("common.time"), render: (row) => formatDateMinute(row.created_at) }

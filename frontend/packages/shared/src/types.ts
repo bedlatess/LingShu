@@ -52,6 +52,9 @@ export interface ModelConfig {
   cache_read_price_per_1k: string;
   price_per_call: string;
   rate_multiplier: string;
+  supports_stream: boolean;
+  supports_tools: boolean;
+  supports_vision: boolean;
   status: string;
   sort_order: number;
 }
@@ -61,6 +64,22 @@ export interface SystemSetting {
   value: string;
   description: string;
   updated_by: string;
+  updated_at: string;
+}
+
+export interface AccessBlacklistEntry {
+  id: string;
+  kind: "ip" | "cidr" | "device";
+  value: string;
+  scope: "login" | "gateway" | "all";
+  reason: string;
+  source: "manual" | "auto";
+  active: boolean;
+  created_by?: string;
+  released_by?: string;
+  expires_at?: string;
+  released_at?: string;
+  created_at: string;
   updated_at: string;
 }
 
@@ -194,6 +213,7 @@ export interface GatewayLog {
   total_tokens: number;
   base_cost: string;
   charge: string;
+  client_ip?: string;
   created_at: string;
 }
 
@@ -371,6 +391,68 @@ export interface LoginResponse {
   user: User;
 }
 
+export interface UserDashboard {
+  balance: string;
+  today_charge: string;
+  month_charge: string;
+  total_charge: string;
+  total_recharge: string;
+  frozen: string;
+  available_models: number;
+  today_requests: number;
+}
+
+export interface UserGatewayLog {
+  request_id: string;
+  model_id: string;
+  status: string;
+  http_status: number;
+  total_tokens: number;
+  charge: string;
+  created_at: string;
+}
+
+export interface UserLedgerRecord {
+  type: string;
+  amount: string;
+  balance_before: string;
+  balance_after: string;
+  remark: string;
+  created_at: string;
+}
+
+export interface UserModelConfig {
+  id: string;
+  public_name: string;
+  type: string;
+  group: string;
+  billing_mode: string;
+  input_unit_price: string;
+  output_unit_price: string;
+  call_unit_price: string;
+  supports_stream: boolean;
+  supports_tools: boolean;
+  supports_vision: boolean;
+  status: string;
+  sort_order: number;
+}
+
+export interface UserDailyStat {
+  day: string;
+  requests: number;
+  successes: number;
+  failures: number;
+  total_tokens: number;
+  charge: string;
+}
+
+export interface UserModelStat {
+  model_id: string;
+  requests: number;
+  total_tokens: number;
+  charge: string;
+}
+
 export interface PublicModel {
   id: string;
   public_name: string;
@@ -380,6 +462,9 @@ export interface PublicModel {
   input_price_per_1m: string;
   output_price_per_1m: string;
   price_per_call?: string;
+  supports_stream: boolean;
+  supports_tools: boolean;
+  supports_vision: boolean;
   currency: string;
 }
 
@@ -398,26 +483,7 @@ export interface PublicSiteInfo {
   captcha_enabled: boolean;
   captcha_provider: string;
   captcha_site_key: string;
+  api_base_url: string;
+  device_secret_key: string;
   login_url: string;
-}
-
-export interface UserDashboard {
-  balance: string;
-  today_charge: string;
-  month_charge: string;
-  frozen: string;
-  available_models: number;
-  today_requests: number;
-}
-
-export interface UserModelPrice {
-  id: string;
-  public_name: string;
-  type: string;
-  group: string;
-  billing_mode: string;
-  input_unit_price: string;
-  output_unit_price: string;
-  call_unit_price: string;
-  status: string;
 }

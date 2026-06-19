@@ -1,8 +1,8 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import type { APIKey, User, createAPI } from "@lingshu/shared";
-import { Badge, Button, Card, CardContent, DataTable, Dialog, Input, PageHeader, Pagination, Select, toast } from "@lingshu/ui";
-import { copyText, formatDateMinute, runWrite, statusVariant, type Pager } from "./admin-page-utils";
+import { Badge, Button, Card, CardContent, DataTable, Dialog, Input, PageHeader, Pagination, Select, copyText, toast } from "@lingshu/ui";
+import { formatDateMinute, runWrite, statusVariant, type Pager } from "./admin-page-utils";
 
 type AdminAPI = ReturnType<typeof createAPI>;
 

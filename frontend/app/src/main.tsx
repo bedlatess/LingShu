@@ -39,6 +39,7 @@ import { ReportsPage } from "@/pages/admin/reports";
 import { OpsPage } from "@/pages/admin/ops";
 import { SettingsPage as AdminSettingsPage } from "@/pages/admin/settings";
 import { AuditPage } from "@/pages/admin/audit";
+import { BlacklistPage } from "@/pages/admin/blacklist";
 
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
@@ -214,7 +215,8 @@ const router = createBrowserRouter([
       { path: "reports", element: <AdminRoute page={(api) => <ReportsPage api={api} />} /> },
       { path: "ops", element: <AdminRoute page={(api) => <OpsPage api={api} />} /> },
       { path: "settings", element: <AdminRoute page={(api) => <AdminSettingsPage api={api} />} /> },
-      { path: "audit", element: <AdminRoute page={(api) => <AuditPage api={api} />} /> }
+      { path: "audit", element: <AdminRoute page={(api) => <AuditPage api={api} />} /> },
+      { path: "blacklist", element: <AdminRoute page={(api) => <BlacklistPage api={api} />} /> }
     ]
   },
   { path: "*", element: <Navigate to="/" replace /> }

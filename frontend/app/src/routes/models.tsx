@@ -1,7 +1,7 @@
 import React from "react";
 import { Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { UserModelConfig } from "@lingshu/shared/user-types";
+import type { UserModelConfig } from "@lingshu/shared";
 
 import { Badge, Card, CardContent, EmptyState, Input, PageHeader } from "@lingshu/ui";
 import { useAuth } from "@/providers/auth";

@@ -1,5 +1,5 @@
 import React from "react";
-import { Activity, Bell, BookOpen, Command as CommandIcon, FileText, Gauge, KeyRound, LogOut, Moon, PanelTop, RadioTower, ScrollText, Settings, Sun, Ticket, Users, WalletCards, Waypoints } from "lucide-react";
+import { Activity, Bell, BookOpen, Command as CommandIcon, FileText, Gauge, KeyRound, LogOut, Moon, PanelTop, RadioTower, ScrollText, Settings, ShieldAlert, Sun, Ticket, Users, WalletCards, Waypoints } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -40,6 +40,7 @@ const adminNavItems: NavItemConfig[] = [
   { to: "/admin/redeem", labelKey: "redeem", fallbackLabel: "Redeem Codes", icon: Ticket },
   { to: "/admin/reports", labelKey: "reports", fallbackLabel: "Reports", icon: FileText },
   { to: "/admin/audit", labelKey: "audit", fallbackLabel: "Audit Logs", icon: ScrollText },
+  { to: "/admin/blacklist", labelKey: "blacklist", fallbackLabel: "Access Blacklist", icon: ShieldAlert },
   { to: "/admin/settings", labelKey: "settings", fallbackLabel: "Settings", icon: Settings }
 ];
 

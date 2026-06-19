@@ -25,6 +25,9 @@ type PublicModelDTO struct {
 	InputPricePer1M  string `json:"input_price_per_1m"`
 	OutputPricePer1M string `json:"output_price_per_1m"`
 	PricePerCall     string `json:"price_per_call,omitempty"`
+	SupportsStream   bool   `json:"supports_stream"`
+	SupportsTools    bool   `json:"supports_tools"`
+	SupportsVision   bool   `json:"supports_vision"`
 	Currency         string `json:"currency"`
 }
 
@@ -57,6 +60,8 @@ func (h Handler) SiteInfo(w http.ResponseWriter, r *http.Request) {
 		"captcha_enabled",
 		"captcha_provider",
 		"captcha_site_key",
+		"api_base_url",
+		"device_secret_key",
 	)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())
@@ -82,6 +87,8 @@ func (h Handler) SiteInfo(w http.ResponseWriter, r *http.Request) {
 		"captcha_enabled":      firstSetting(settings, "captcha_enabled", "false") == "true",
 		"captcha_provider":     firstSetting(settings, "captcha_provider", ""),
 		"captcha_site_key":     firstSetting(settings, "captcha_site_key", ""),
+		"api_base_url":         firstSetting(settings, "api_base_url", ""),
+		"device_secret_key":    firstSetting(settings, "device_secret_key", ""),
 		"login_url":            "/login",
 	})
 }
@@ -113,7 +120,7 @@ func (h Handler) listModels(ctx context.Context) ([]PublicModelDTO, error) {
 	rows, err := h.db.Query(ctx, `
 		SELECT id::text, public_name, type, model_group, billing_mode,
 		       input_price_per_1k::text, output_price_per_1k::text, price_per_call::text,
-		       rate_multiplier::text
+		       rate_multiplier::text, supports_stream, supports_tools, supports_vision
 		FROM models
 		WHERE status='enabled'
 		  AND deleted_at IS NULL
@@ -133,7 +140,8 @@ func (h Handler) listModels(ctx context.Context) ([]PublicModelDTO, error) {
 	items := []PublicModelDTO{}
 	for rows.Next() {
 		var id, publicName, modelType, group, billingMode, inputPer1K, outputPer1K, pricePerCall, multiplier string
-		if err := rows.Scan(&id, &publicName, &modelType, &group, &billingMode, &inputPer1K, &outputPer1K, &pricePerCall, &multiplier); err != nil {
+		var supportsStream, supportsTools, supportsVision bool
+		if err := rows.Scan(&id, &publicName, &modelType, &group, &billingMode, &inputPer1K, &outputPer1K, &pricePerCall, &multiplier, &supportsStream, &supportsTools, &supportsVision); err != nil {
 			return nil, err
 		}
 		items = append(items, PublicModelDTO{
@@ -145,6 +153,9 @@ func (h Handler) listModels(ctx context.Context) ([]PublicModelDTO, error) {
 			InputPricePer1M:  publicPricePer1M(inputPer1K, multiplier),
 			OutputPricePer1M: publicPricePer1M(outputPer1K, multiplier),
 			PricePerCall:     publicPrice(pricePerCall, multiplier),
+			SupportsStream:   supportsStream,
+			SupportsTools:    supportsTools,
+			SupportsVision:   supportsVision,
 			Currency:         "USD",
 		})
 	}
