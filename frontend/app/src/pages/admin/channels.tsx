@@ -1,9 +1,9 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
-import type { Channel, ChannelDetail, ChannelModelSyncResult, createAPI } from "@lingshu/shared";
+import type { Channel, ChannelDetail, ChannelModelSyncResult, ModelConfig, createAPI } from "@lingshu/shared";
 import { Badge, Button, Card, CardContent, DataTable, Dialog, Input, PageHeader, Pagination, Select, StatCard, toast } from "@lingshu/ui";
-import { Activity, Clock, RadioTower, RefreshCw } from "lucide-react";
+import { Activity, Clock, Plus, RadioTower, RefreshCw, Unlink } from "lucide-react";
 import { formatDateMinute, providerOptions, runWrite, statusVariant, type Pager } from "./admin-page-utils";
 
 type AdminAPI = ReturnType<typeof createAPI>;
@@ -15,14 +15,20 @@ export function ChannelsPage({ api }: { api: AdminAPI }) {
   const [form, setForm] = React.useState({ name: "", provider_type: "openai", base_url: "", api_key: "", status: "enabled", weight: 1 });
   const [editing, setEditing] = React.useState<Channel | null>(null);
   const [editForm, setEditForm] = React.useState({ name: "", provider_type: "openai", base_url: "", api_key: "", status: "enabled", weight: 1 });
+  const [loading, setLoading] = React.useState(true);
 
   async function refresh() {
-    const result = await api.listChannels(pager.page, pager.limit);
-    setChannels(result.items);
-    setPager((prev) => ({ ...prev, total: result.total }));
+    setLoading(true);
+    try {
+      const result = await api.listChannels(pager.page, pager.limit);
+      setChannels(result.items);
+      setPager((prev) => ({ ...prev, total: result.total }));
+    } finally {
+      setLoading(false);
+    }
   }
 
-  React.useEffect(() => { refresh(); }, [api, pager.page, pager.limit]);
+  React.useEffect(() => { refresh().catch(() => setLoading(false)); }, [api, pager.page, pager.limit]);
 
   async function create(event: React.FormEvent) {
     event.preventDefault();
@@ -62,11 +68,12 @@ export function ChannelsPage({ api }: { api: AdminAPI }) {
       </Card>
       <DataTable
         data={channels}
+        loading={loading}
         rowKey={(row) => row.id}
         columns={[
           { key: "name", title: t("common.name"), render: (row) => <Link className="text-[var(--clay)] hover:underline" to={`/admin/channels/${row.id}`}>{row.name}</Link> },
           { key: "provider_type", title: t("channels.table.provider") },
-          { key: "base_url", title: t("channels.table.address") },
+          { key: "base_url", title: t("channels.table.address"), render: (row) => <span className="block max-w-[260px] truncate" title={row.base_url}>{row.base_url}</span> },
           { key: "bound_count", title: t("channels.table.bound") },
           { key: "last_success_at", title: t("channels.table.lastSuccess"), render: (row) => formatDateMinute(row.last_success_at) },
           { key: "health", title: t("channels.table.health"), render: (row) => <Badge variant={statusVariant(row.health)}>{row.health}</Badge> },
@@ -105,7 +112,11 @@ export function ChannelDetailPage({ api }: { api: AdminAPI }) {
   const [detail, setDetail] = React.useState<ChannelDetail | null>(null);
   const [sync, setSync] = React.useState<ChannelModelSyncResult | null>(null);
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
+  const [syncStrategy, setSyncStrategy] = React.useState<"create_or_bind" | "bind_existing">("create_or_bind");
   const [busy, setBusy] = React.useState(false);
+  const [bindOpen, setBindOpen] = React.useState(false);
+  const [bindForm, setBindForm] = React.useState({ model_id: "", upstream_model_name: "" });
+  const [models, setModels] = React.useState<ModelConfig[]>([]);
 
   async function loadDetail() {
     if (id) setDetail(await api.getChannelDetail(id));
@@ -144,7 +155,7 @@ export function ChannelDetailPage({ api }: { api: AdminAPI }) {
     setBusy(true);
     await runWrite(async () => {
       await api.importChannelModels(id, {
-        strategy: "create_or_bind",
+        strategy: syncStrategy,
         models: picks.map((m) => ({
           upstream_name: m.id,
           public_name: m.id,
@@ -162,6 +173,38 @@ export function ChannelDetailPage({ api }: { api: AdminAPI }) {
     setBusy(false);
   }
 
+  async function openBind() {
+    if (models.length === 0) {
+      const result = await api.listModels(1, 200);
+      setModels(result.items);
+    }
+    setBindForm({ model_id: "", upstream_model_name: "" });
+    setBindOpen(true);
+  }
+
+  async function confirmBind(event: React.FormEvent) {
+    event.preventDefault();
+    if (!id || !bindForm.model_id || !bindForm.upstream_model_name.trim()) {
+      toast.error(t("channels.bindIncomplete"));
+      return;
+    }
+    await runWrite(async () => {
+      await api.bindChannelModel({ channel_id: id, model_id: bindForm.model_id, upstream_model_name: bindForm.upstream_model_name.trim() });
+      toast.success(t("channels.bindSuccess"));
+      setBindOpen(false);
+      await loadDetail();
+    }, t("channels.bindFailed"));
+  }
+
+  async function unbind(modelID: string) {
+    if (!id) return;
+    await runWrite(async () => {
+      await api.unbindChannelModel(id, modelID);
+      toast.success(t("channels.unbindSuccess"));
+      await loadDetail();
+    }, t("channels.unbindFailed"));
+  }
+
   if (!detail) return <PageHeader title={t("channels.detailTitle")} description={t("channels.loadingDetail")} />;
   return (
     <div className="page-grid">
@@ -169,7 +212,12 @@ export function ChannelDetailPage({ api }: { api: AdminAPI }) {
         eyebrow={t("channels.detailTitle")}
         title={detail.channel.name}
         description={detail.channel.base_url}
-        action={<Button variant="secondary" onClick={openSync}><RefreshCw className="mr-1.5 size-4" />{t("channels.syncModels")}</Button>}
+        action={(
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={openBind}><Plus className="mr-1.5 size-4" />{t("channels.bindModel")}</Button>
+            <Button variant="secondary" onClick={openSync}><RefreshCw className="mr-1.5 size-4" />{t("channels.syncModels")}</Button>
+          </div>
+        )}
       />
       <section className="grid gap-4 md:grid-cols-3">
         <StatCard label={t("channels.requests")} value={detail.stats.requests} hint={t("channels.failures", { count: detail.stats.failures })} icon={Activity} />
@@ -183,15 +231,48 @@ export function ChannelDetailPage({ api }: { api: AdminAPI }) {
           { key: "model_name", title: t("channels.table.platformModel") },
           { key: "upstream_model_name", title: t("channels.table.upstreamModel") },
           { key: "status", title: t("common.status"), render: (row) => <Badge variant={statusVariant(row.status)}>{row.status}</Badge> },
-          { key: "created_at", title: t("channels.table.boundAt"), render: (row) => formatDateMinute(row.created_at) }
+          { key: "created_at", title: t("channels.table.boundAt"), render: (row) => formatDateMinute(row.created_at) },
+          {
+            key: "actions",
+            title: t("common.actions"),
+            render: (row) => (
+              <Button size="sm" variant="secondary" onClick={() => unbind(row.model_id)}><Unlink className="mr-1.5 size-3.5" />{t("channels.unbind")}</Button>
+            )
+          }
         ]}
       />
+      <Dialog open={bindOpen} title={t("channels.bindTitle")} onClose={() => setBindOpen(false)}>
+        <form className="grid gap-4" onSubmit={confirmBind}>
+          <label className="grid gap-1.5 text-sm">
+            <span className="font-medium">{t("channels.bindPlatformModel")}</span>
+            <Select value={bindForm.model_id} onChange={(e) => setBindForm({ ...bindForm, model_id: e.target.value })}>
+              <option value="">{t("channels.bindSelectModel")}</option>
+              {models.map((m) => <option key={m.id} value={m.id}>{m.public_name}</option>)}
+            </Select>
+          </label>
+          <label className="grid gap-1.5 text-sm">
+            <span className="font-medium">{t("channels.bindUpstreamName")}</span>
+            <Input placeholder={t("channels.bindUpstreamPlaceholder")} value={bindForm.upstream_model_name} onChange={(e) => setBindForm({ ...bindForm, upstream_model_name: e.target.value })} required />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" type="button" onClick={() => setBindOpen(false)}>{t("common.cancel")}</Button>
+            <Button type="submit">{t("channels.bindConfirm")}</Button>
+          </div>
+        </form>
+      </Dialog>
       <Dialog open={Boolean(sync)} title={t("channels.syncTitle")} onClose={() => setSync(null)}>
         {sync && (
           <div className="grid gap-4">
             <p className="text-sm text-muted-foreground">
               {t("channels.syncSummary", { upstream: sync.upstream_models.length, bound: sync.existing_bindings.length, added: newModels.length })}
             </p>
+            <label className="grid gap-1.5 text-sm">
+              <span className="font-medium">{t("channels.syncStrategy")}</span>
+              <Select value={syncStrategy} onChange={(e) => setSyncStrategy(e.target.value as "create_or_bind" | "bind_existing")}>
+                <option value="create_or_bind">{t("channels.syncStrategyCreateOrBind")}</option>
+                <option value="bind_existing">{t("channels.syncStrategyBindExisting")}</option>
+              </Select>
+            </label>
             {newModels.length === 0 ? (
               <p className="rounded-md border border-border bg-muted/30 px-3 py-6 text-center text-sm text-muted-foreground">{t("channels.syncAllBound")}</p>
             ) : (

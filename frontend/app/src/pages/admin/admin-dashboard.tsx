@@ -18,7 +18,7 @@ export function AdminDashboardPage({ api, me }: { api: AdminAPI; me: User }) {
       setDashboard(dash);
       setDaily(dailyRows.items.slice(0, 7).reverse());
       setModels(modelRows.items.slice(0, 5));
-    });
+    }).catch(() => undefined);
   }, [api]);
 
   const successRate = dashboard?.today_requests ? `${(((dashboard.today_successes ?? 0) / dashboard.today_requests) * 100).toFixed(1)}%` : "0%";

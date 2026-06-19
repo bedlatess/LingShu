@@ -84,7 +84,7 @@ export function DataTable<T>({
                       onClick={onRowClick ? () => onRowClick(row) : undefined}
                     >
                       {columns.map((column) => (
-                        <td key={column.key} className={cn("px-4 py-3 align-top text-sm text-foreground", column.className)}>
+                        <td key={column.key} className={cn("whitespace-nowrap px-4 py-3 align-middle text-sm text-foreground", column.className)}>
                           {column.render ? column.render(row) : String((row as Record<string, unknown>)[column.key] ?? "-")}
                         </td>
                       ))}

@@ -9,8 +9,6 @@ const dashboard = {
     todayChargeHint: "{{count}} requests today",
     monthCharge: "This Month",
     monthChargeHint: "Natural month total",
-    frozen: "In-flight Reserve",
-    frozenHint: "Settles after stream or long request finishes",
     models: "Available Models",
     modelsHint: "Models enabled by admin"
   },
@@ -23,6 +21,12 @@ const dashboard = {
     used: "Total spent",
     remaining: "Current balance",
     description: "This progress uses total granted balance and total spend to help you understand quota consumption."
+  },
+  developer: {
+    title: "Developer access",
+    description: "To use LingShu as a gateway in local tools, create an API key first.",
+    manageKeys: "Manage API Keys",
+    toggle: "View setup examples"
   },
   quickConfig: {
     title: "Quick setup",

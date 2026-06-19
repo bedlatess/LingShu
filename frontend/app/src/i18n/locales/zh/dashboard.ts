@@ -9,8 +9,6 @@ const dashboard = {
     todayChargeHint: "今日 {{count}} 次请求",
     monthCharge: "本月消费",
     monthChargeHint: "按自然月统计",
-    frozen: "请求中预占",
-    frozenHint: "流式或长请求完成后结算",
     models: "可用模型",
     modelsHint: "管理员已开放的模型"
   },
@@ -23,6 +21,12 @@ const dashboard = {
     used: "累计消费",
     remaining: "当前余额",
     description: "该进度使用账户累计入账与累计消费估算，便于快速判断额度消耗情况。"
+  },
+  developer: {
+    title: "开发者接入",
+    description: "在本地工具中使用灵枢网关，需先创建一个 API Key。",
+    manageKeys: "管理 API Key",
+    toggle: "查看接入配置示例"
   },
   quickConfig: {
     title: "快速接入",

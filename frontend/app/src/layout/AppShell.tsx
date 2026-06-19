@@ -1,6 +1,6 @@
 import React from "react";
-import { Activity, Bell, BookOpen, Check, Command as CommandIcon, FileText, Gauge, Globe, KeyRound, LogOut, Moon, PanelTop, RadioTower, ScrollText, Settings, ShieldAlert, Sun, Ticket, Users, WalletCards, Waypoints } from "lucide-react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { Activity, Bell, BookOpen, Check, ChevronRight, Command as CommandIcon, FileText, Gauge, Globe, KeyRound, LogOut, Moon, PanelTop, RadioTower, ScrollText, Settings, ShieldAlert, Sun, Ticket, Users, WalletCards, Waypoints } from "lucide-react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { Button, Command, PopoverContent, PopoverRoot, PopoverTrigger, cn, useHotkeys } from "@lingshu/ui";
@@ -123,7 +123,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+        <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-4 sm:px-6 2xl:px-10">
           <div className="flex items-center gap-3">
             <div className="grid h-9 w-9 place-items-center overflow-hidden rounded-md border border-border bg-foreground text-sm font-black text-background">
               {siteInfo?.site_logo_url ? <img src={siteInfo.site_logo_url} alt={displaySiteName(siteInfo)} className="h-full w-full object-contain" /> : "LS"}
@@ -153,7 +153,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-7xl gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[220px_1fr]">
+      <div className="mx-auto grid max-w-[1600px] gap-5 px-4 py-5 sm:px-6 2xl:px-10 lg:grid-cols-[232px_1fr]">
         <aside className="hidden rounded-lg border border-border bg-card p-2 shadow-[var(--shadow-xs)] lg:block">
           <ShellMenu isAdmin={isAdmin} />
         </aside>
@@ -205,14 +205,34 @@ function ShellMenu({ isAdmin }: { isAdmin: boolean }) {
 
 function NavGroup({ group, section }: { group: NavGroupConfig; section: "userSection" | "adminSection" }) {
   const { t } = useTranslation("navigation");
+  const location = useLocation();
+  const containsActive = group.items.some((item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`));
+  const [open, setOpen] = React.useState(containsActive);
+
+  React.useEffect(() => {
+    if (containsActive) setOpen(true);
+  }, [containsActive]);
+
   return (
     <div className="grid gap-1">
-      <p className="px-3 pb-0.5 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-        {t(`groups.${group.titleKey}`, group.fallbackTitle)}
-      </p>
-      {group.items.map((item) => (
-        <NavItem key={item.to} item={{ ...item, label: t(`${section}.${item.labelKey}`, item.fallbackLabel) }} />
-      ))}
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex items-center gap-2 rounded-md px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+        aria-expanded={open}
+      >
+        <span className="flex-1 text-left">{t(`groups.${group.titleKey}`, group.fallbackTitle)}</span>
+        <ChevronRight className={cn("h-3.5 w-3.5 transition-transform duration-200", open && "rotate-90")} />
+      </button>
+      <div className={cn("grid transition-[grid-template-rows] duration-200 ease-out", open ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
+        <div className="overflow-hidden">
+          <div className="grid gap-1">
+            {group.items.map((item) => (
+              <NavItem key={item.to} item={{ ...item, label: t(`${section}.${item.labelKey}`, item.fallbackLabel) }} />
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
