@@ -65,8 +65,20 @@ func (s ReportService) AdminLogsPaged(ctx context.Context, page, limit int) ([]r
 	return s.reports.AdminLogsPaged(ctx, limit, (page-1)*limit)
 }
 
+func (s ReportService) ExportAdminLogs(ctx context.Context, fn func(repository.GatewayLog) error) error {
+	return s.reports.ExportAdminLogs(ctx, fn)
+}
+
 func (s ReportService) AdminLedger(ctx context.Context) ([]repository.LedgerRecord, error) {
 	return s.reports.AdminLedger(ctx)
+}
+
+func (s ReportService) ExportAdminLedger(ctx context.Context, fn func(repository.LedgerRecord) error) error {
+	return s.reports.ExportAdminLedger(ctx, fn)
+}
+
+func (s ReportService) ExportUserLogs(ctx context.Context, userID string, fn func(repository.GatewayLog) error) error {
+	return s.reports.ExportUserLogs(ctx, userID, fn)
 }
 
 func (s ReportService) AdminLedgerPaged(ctx context.Context, page, limit int) ([]repository.LedgerRecord, int, error) {

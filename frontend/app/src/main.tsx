@@ -10,6 +10,7 @@ import { SiteInfoProvider, displaySiteName, useSiteInfo } from "./providers/site
 import { GuardedRoute } from "./router/guards";
 import { ensureNamespaces, i18n, setDocumentLanguage, setDocumentTitle } from "./i18n";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { CaptchaWidget } from "@/components/captcha-widget";
 import { LegalConsent } from "@/components/legal-consent";
 import { PublicFooter } from "@/components/public-footer";
 
@@ -19,6 +20,7 @@ import { RegisterPage } from "@/routes/register";
 import { ForgotPage } from "@/routes/forgot";
 import { LegalPage } from "@/routes/legal";
 import { DashboardPage } from "@/routes/dashboard";
+import { DocsPage } from "@/routes/docs";
 import { ApiKeysPage as UserApiKeysPage } from "@/routes/api-keys";
 import { UsagePage } from "@/routes/usage";
 import { ModelsPage as UserModelsPage } from "@/routes/models";
@@ -44,7 +46,7 @@ import "@fontsource/inter/600.css";
 import "@fontsource/jetbrains-mono/400.css";
 import "./styles.css";
 
-void ensureNamespaces(["common", "navigation", "auth", "dashboard", "keys", "usage", "pricing", "models", "redeem", "announcements", "settings", "admin"]);
+void ensureNamespaces(["common", "navigation", "auth", "dashboard", "docs", "keys", "usage", "pricing", "models", "redeem", "announcements", "settings", "admin"]);
 
 function LoginPage() {
   const { login, token, user, authStatus } = useAuth();
@@ -58,6 +60,7 @@ function LoginPage() {
   const [error, setError] = React.useState("");
   const [agreed, setAgreed] = React.useState(false);
   const [captchaToken, setCaptchaToken] = React.useState("");
+  const handleCaptchaToken = React.useCallback((token: string) => setCaptchaToken(token), []);
 
   if (token && authStatus === "checking") {
     return <main className="min-h-screen bg-background" />;
@@ -121,12 +124,7 @@ function LoginPage() {
                 {t("auth:password")}
                 <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
               </label>
-              {siteInfo?.captcha_enabled ? (
-                <label className="grid gap-2 text-sm">
-                  {t("auth:captchaToken")}
-                  <Input value={captchaToken} onChange={(event) => setCaptchaToken(event.target.value)} autoComplete="off" required />
-                </label>
-              ) : null}
+              <CaptchaWidget siteInfo={siteInfo} onToken={handleCaptchaToken} />
               <div className="flex items-center justify-between text-sm">
                 <Button asChild variant="link">
                   <Link to="/forgot">{t("auth:forgotLink")}</Link>
@@ -189,6 +187,7 @@ const router = createBrowserRouter([
     element: <GuardedRoute />,
     children: [
       { path: "dashboard", element: <DashboardPage /> },
+      { path: "docs", element: <DocsPage /> },
       { path: "api-keys", element: <UserApiKeysPage /> },
       { path: "usage", element: <UsagePage /> },
       { path: "models", element: <UserModelsPage /> },

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { createAPI } from "@lingshu/shared";
 import { Alert, Button, Card, CardContent, Field, Input, toast } from "@lingshu/ui";
 
+import { CaptchaWidget } from "@/components/captcha-widget";
 import { PublicFooter } from "@/components/public-footer";
 import { SiteNav } from "@/components/site-nav";
 import { useSiteInfo } from "@/providers/site-info";
@@ -21,6 +22,7 @@ export function ForgotPage() {
   const [error, setError] = React.useState("");
   const [done, setDone] = React.useState(false);
   const { siteInfo } = useSiteInfo();
+  const handleCaptchaToken = React.useCallback((token: string) => setCaptchaToken(token), []);
 
   React.useEffect(() => {
     if (cooldown <= 0) return;
@@ -100,11 +102,7 @@ export function ForgotPage() {
                 <Field label={t("newPassword")}>
                   <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" minLength={8} required />
                 </Field>
-                {siteInfo?.captcha_enabled ? (
-                  <Field label={t("captchaToken")}>
-                    <Input value={captchaToken} onChange={(event) => setCaptchaToken(event.target.value)} autoComplete="off" required />
-                  </Field>
-                ) : null}
+                <CaptchaWidget siteInfo={siteInfo} onToken={handleCaptchaToken} />
                 <Button type="submit" disabled={submitting}>{submitting ? t("submitting") : t("resetSubmit")}</Button>
               </form>
             )}

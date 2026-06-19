@@ -63,6 +63,22 @@ export function exportCSV<T extends object>(filename: string, rows: T[]) {
   URL.revokeObjectURL(url);
 }
 
+export async function downloadBlob(filename: string, load: () => Promise<Blob>) {
+  try {
+    const blob = await load();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    toast.error(`${i18n.t("admin:common.exportFailed")}: ${errText(err)}`);
+  }
+}
+
 export async function copyText(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard && window.isSecureContext) {

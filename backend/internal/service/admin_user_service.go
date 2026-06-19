@@ -28,6 +28,11 @@ type UpdateUserInput struct {
 	Status   *string `json:"status"`
 }
 
+type UpdateUserLimitsInput struct {
+	RPMLimit         int `json:"rpm_limit"`
+	ConcurrencyLimit int `json:"concurrency_limit"`
+}
+
 type AdjustBalanceInput struct {
 	Amount string `json:"amount"`
 	Remark string `json:"remark"`
@@ -150,6 +155,65 @@ func (s AdminUserService) ResetPassword(ctx context.Context, actorID, id, newPas
 func (s AdminUserService) Ban(ctx context.Context, actorID, id, ip, userAgent string) (repository.User, error) {
 	status := "banned"
 	return s.Update(ctx, actorID, id, UpdateUserInput{Status: &status}, ip, userAgent)
+}
+
+func (s AdminUserService) Unban(ctx context.Context, actorID, id, ip, userAgent string) (repository.User, error) {
+	status := "active"
+	return s.Update(ctx, actorID, id, UpdateUserInput{Status: &status}, ip, userAgent)
+}
+
+func (s AdminUserService) UpdateLimits(ctx context.Context, actorID, id string, input UpdateUserLimitsInput, ip, userAgent string) (repository.User, error) {
+	if input.RPMLimit < 0 || input.ConcurrencyLimit < 0 {
+		return repository.User{}, errors.New("limits must be greater than or equal to 0")
+	}
+	before, err := s.users.FindByID(ctx, id)
+	if err != nil {
+		return repository.User{}, err
+	}
+	after, err := s.users.UpdateLimits(ctx, repository.UpdateUserLimitsParams{
+		ID:               id,
+		RPMLimit:         input.RPMLimit,
+		ConcurrencyLimit: input.ConcurrencyLimit,
+	})
+	if err != nil {
+		return repository.User{}, err
+	}
+	if s.keys.HasStore() {
+		_ = s.keys.InvalidateByUser(ctx, id)
+	}
+	_ = s.audits.Write(ctx, repository.AuditEntry{
+		ActorID:    actorID,
+		Action:     "admin.user.update_limits",
+		TargetType: "user",
+		TargetID:   id,
+		Before:     before,
+		After:      after,
+		IP:         ip,
+		UserAgent:  userAgent,
+	})
+	return after, nil
+}
+
+func (s AdminUserService) RevokeTokens(ctx context.Context, actorID, id, ip, userAgent string) (repository.User, error) {
+	before, err := s.users.FindByID(ctx, id)
+	if err != nil {
+		return repository.User{}, err
+	}
+	after, err := s.users.RevokeTokens(ctx, id)
+	if err != nil {
+		return repository.User{}, err
+	}
+	_ = s.audits.Write(ctx, repository.AuditEntry{
+		ActorID:    actorID,
+		Action:     "admin.user.revoke_tokens",
+		TargetType: "user",
+		TargetID:   id,
+		Before:     before,
+		After:      after,
+		IP:         ip,
+		UserAgent:  userAgent,
+	})
+	return after, nil
 }
 
 func (s AdminUserService) AdjustBalance(ctx context.Context, actorID, id string, input AdjustBalanceInput, ip, userAgent string) (repository.User, error) {

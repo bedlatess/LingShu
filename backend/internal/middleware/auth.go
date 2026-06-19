@@ -42,6 +42,10 @@ func JWTAuth(secret string, lookups ...userLookup) func(http.Handler) http.Handl
 					httpx.Error(w, http.StatusUnauthorized, "user disabled")
 					return
 				}
+				if user.TokenRevokedAt != nil && claims.IssuedAt != nil && !claims.IssuedAt.Time.After(*user.TokenRevokedAt) {
+					httpx.Error(w, http.StatusUnauthorized, "token revoked")
+					return
+				}
 			}
 			ctx := context.WithValue(r.Context(), authContextKey, AuthUser{ID: claims.UserID, Role: claims.Role})
 			next.ServeHTTP(w, r.WithContext(ctx))

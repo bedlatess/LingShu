@@ -7,6 +7,7 @@ const keys = {
   defaultName: "默认密钥",
   createAction: "创建",
   createSuccess: "API 密钥已创建",
+  copyBaseURLSuccess: "base_url 已复制",
   updateSuccess: "API 密钥已更新",
   deleteSuccess: "API 密钥已删除",
   deleteConfirm: "确认删除这个 API 密钥？删除后使用它的请求将无法继续访问。",
@@ -20,6 +21,8 @@ const keys = {
     status: "状态",
     createdAt: "创建时间",
     actions: "操作",
+    copyBaseURL: "复制 base_url",
+    docs: "示例",
     edit: "编辑",
     delete: "删除"
   },

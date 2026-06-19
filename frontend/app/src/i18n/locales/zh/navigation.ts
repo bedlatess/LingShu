@@ -8,6 +8,7 @@ const navigation = {
   logout: "退出登录",
   userSection: {
     dashboard: "概览",
+    docs: "接入指引",
     apiKeys: "API 密钥",
     usage: "用量",
     models: "模型",

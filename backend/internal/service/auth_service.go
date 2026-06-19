@@ -24,8 +24,9 @@ var (
 type AuthService struct {
 	cfg      config.Config
 	users    repository.UserRepository
-	settings repository.SettingsRepository
+	settings SettingsGetter
 	email    EmailService
+	captcha  CaptchaVerifier
 	redis    *redis.Client
 }
 
@@ -35,6 +36,7 @@ type RegisterInput struct {
 	Password string `json:"password"`
 	Code     string `json:"code"`
 	Captcha  string `json:"captcha_token"`
+	RemoteIP string `json:"-"`
 }
 
 type LoginResult struct {
@@ -42,15 +44,15 @@ type LoginResult struct {
 	User  repository.User `json:"user"`
 }
 
-func NewAuthService(cfg config.Config, users repository.UserRepository, settings repository.SettingsRepository, email EmailService, redisClient *redis.Client) AuthService {
-	return AuthService{cfg: cfg, users: users, settings: settings, email: email, redis: redisClient}
+func NewAuthService(cfg config.Config, users repository.UserRepository, settings SettingsGetter, email EmailService, captcha CaptchaVerifier, redisClient *redis.Client) AuthService {
+	return AuthService{cfg: cfg, users: users, settings: settings, email: email, captcha: captcha, redis: redisClient}
 }
 
 func (s AuthService) Login(ctx context.Context, login, plainPassword, ip, captcha string) (LoginResult, error) {
 	if err := s.checkLoginLock(ctx, login, ip); err != nil {
 		return LoginResult{}, err
 	}
-	if err := s.requireCaptchaIfEnabled(ctx, captcha); err != nil {
+	if err := s.requireCaptchaIfEnabled(ctx, captcha, ip); err != nil {
 		return LoginResult{}, err
 	}
 	user, err := s.users.FindByUsernameOrEmail(ctx, login)
@@ -82,7 +84,7 @@ func (s AuthService) Register(ctx context.Context, input RegisterInput) (reposit
 	if input.Username == "" || input.Email == "" || len(input.Password) < 8 {
 		return repository.User{}, ErrInvalidCredentials
 	}
-	if err := s.requireCaptchaIfEnabled(ctx, input.Captcha); err != nil {
+	if err := s.requireCaptchaIfEnabled(ctx, input.Captcha, input.RemoteIP); err != nil {
 		return repository.User{}, err
 	}
 	if err := s.email.VerifyCode(ctx, "register", input.Email, input.Code); err != nil {
@@ -180,7 +182,7 @@ func loginFailSubjects(login, ip string) []string {
 	return subjects
 }
 
-func (s AuthService) SendEmailCode(ctx context.Context, purpose, email, captcha string) error {
+func (s AuthService) SendEmailCode(ctx context.Context, purpose, email, captcha, remoteIP string) error {
 	if purpose == "register" {
 		mode, err := s.registrationMode(ctx)
 		if err != nil {
@@ -189,15 +191,15 @@ func (s AuthService) SendEmailCode(ctx context.Context, purpose, email, captcha 
 		if mode == "closed" || mode == "invite" {
 			return ErrForbidden
 		}
-		if err := s.requireCaptchaIfEnabled(ctx, captcha); err != nil {
+		if err := s.requireCaptchaIfEnabled(ctx, captcha, remoteIP); err != nil {
 			return err
 		}
 	}
 	return s.email.SendCode(ctx, purpose, email)
 }
 
-func (s AuthService) ForgotPassword(ctx context.Context, email, captcha string) error {
-	if err := s.requireCaptchaIfEnabled(ctx, captcha); err != nil {
+func (s AuthService) ForgotPassword(ctx context.Context, email, captcha, remoteIP string) error {
+	if err := s.requireCaptchaIfEnabled(ctx, captcha, remoteIP); err != nil {
 		return err
 	}
 	return s.email.SendCode(ctx, "reset", email)
@@ -221,15 +223,18 @@ func (s AuthService) ResetPassword(ctx context.Context, email, code, newPassword
 	return s.users.SetPassword(ctx, user.ID, hash)
 }
 
-func (s AuthService) requireCaptchaIfEnabled(ctx context.Context, captcha string) error {
+func (s AuthService) requireCaptchaIfEnabled(ctx context.Context, captcha, remoteIP string) error {
 	settings, err := s.settings.GetMap(ctx, "captcha_enabled")
 	if err != nil {
 		return err
 	}
-	if settings["captcha_enabled"] == "true" && strings.TrimSpace(captcha) == "" {
-		return ErrCaptchaRequired
+	if settings["captcha_enabled"] != "true" {
+		return nil
 	}
-	return nil
+	if s.captcha == nil {
+		return ErrCaptchaNotConfigured
+	}
+	return s.captcha.Verify(ctx, captcha, remoteIP)
 }
 
 func (s AuthService) registrationMode(ctx context.Context) (string, error) {

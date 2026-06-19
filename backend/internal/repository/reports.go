@@ -325,9 +325,77 @@ func (r ReportRepository) AdminLogsPaged(ctx context.Context, limit, offset int)
 	return items, total, err
 }
 
+func (r ReportRepository) ExportAdminLogs(ctx context.Context, fn func(GatewayLog) error) error {
+	rows, err := r.db.Query(ctx, `
+		SELECT request_id, user_id::text, COALESCE(model_id::text,''), status, http_status, total_tokens, base_cost::text, charge::text, created_at
+		FROM gateway_requests
+		ORDER BY created_at DESC
+	`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var item GatewayLog
+		if err := rows.Scan(&item.RequestID, &item.UserID, &item.ModelID, &item.Status, &item.HTTPStatus, &item.TotalTokens, &item.BaseCost, &item.Charge, &item.CreatedAt); err != nil {
+			return err
+		}
+		if err := fn(item); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
+
 func (r ReportRepository) AdminLedger(ctx context.Context) ([]LedgerRecord, error) {
 	items, _, err := r.AdminLedgerPaged(ctx, 100, 0)
 	return items, err
+}
+
+func (r ReportRepository) ExportAdminLedger(ctx context.Context, fn func(LedgerRecord) error) error {
+	rows, err := r.db.Query(ctx, `
+		SELECT user_id::text, type, amount::text, balance_before::text, balance_after::text,
+		       COALESCE(base_cost::text,'0'), COALESCE(rate_multiplier::text,'0'), remark, created_at
+		FROM balance_ledger
+		ORDER BY created_at DESC
+	`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var item LedgerRecord
+		if err := rows.Scan(&item.UserID, &item.Type, &item.Amount, &item.BalanceBefore, &item.BalanceAfter, &item.BaseCost, &item.RateMultiplier, &item.Remark, &item.CreatedAt); err != nil {
+			return err
+		}
+		if err := fn(item); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
+
+func (r ReportRepository) ExportUserLogs(ctx context.Context, userID string, fn func(GatewayLog) error) error {
+	rows, err := r.db.Query(ctx, `
+		SELECT request_id, user_id::text, COALESCE(model_id::text,''), status, http_status, total_tokens, base_cost::text, charge::text, created_at
+		FROM gateway_requests
+		WHERE user_id=$1
+		ORDER BY created_at DESC
+	`, userID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var item GatewayLog
+		if err := rows.Scan(&item.RequestID, &item.UserID, &item.ModelID, &item.Status, &item.HTTPStatus, &item.TotalTokens, &item.BaseCost, &item.Charge, &item.CreatedAt); err != nil {
+			return err
+		}
+		if err := fn(item); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
 }
 
 func (r ReportRepository) AdminLedgerPaged(ctx context.Context, limit, offset int) ([]LedgerRecord, int, error) {

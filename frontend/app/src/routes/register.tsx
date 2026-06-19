@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { createAPI } from "@lingshu/shared";
 import { Alert, Button, Card, CardContent, Field, Input, toast } from "@lingshu/ui";
 
+import { CaptchaWidget } from "@/components/captcha-widget";
 import { LegalConsent } from "@/components/legal-consent";
 import { PublicFooter } from "@/components/public-footer";
 import { SiteNav } from "@/components/site-nav";
@@ -26,6 +27,7 @@ export function RegisterPage() {
   const [sending, setSending] = React.useState(false);
   const [cooldown, setCooldown] = React.useState(0);
   const [error, setError] = React.useState("");
+  const handleCaptchaToken = React.useCallback((token: string) => setCaptchaToken(token), []);
 
   React.useEffect(() => {
     if (cooldown <= 0) return;
@@ -128,11 +130,7 @@ export function RegisterPage() {
                 <Field label={t("password")}>
                   <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" minLength={8} required />
                 </Field>
-                {siteInfo?.captcha_enabled ? (
-                  <Field label={t("captchaToken")}>
-                    <Input value={captchaToken} onChange={(event) => setCaptchaToken(event.target.value)} autoComplete="off" required />
-                  </Field>
-                ) : null}
+                <CaptchaWidget siteInfo={siteInfo} onToken={handleCaptchaToken} />
                 <LegalConsent checked={agreed} onCheckedChange={setAgreed} />
                 <Button type="submit" disabled={submitting || !agreed}>{submitting ? t("submitting") : t("registerSubmit")}</Button>
               </form>

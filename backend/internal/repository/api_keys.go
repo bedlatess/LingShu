@@ -212,7 +212,9 @@ func (r APIKeyRepository) FindPrincipalByHash(ctx context.Context, hash string) 
 	}
 	err := r.db.QueryRow(ctx, `
 		SELECT k.id::text, u.id::text, u.role, u.status, k.status, u.balance::text,
-		       k.rpm_limit, k.concurrency_limit, k.allowed_endpoints
+		       CASE WHEN k.rpm_limit > 0 THEN k.rpm_limit ELSE COALESCE(u.rpm_limit, 0) END,
+		       CASE WHEN k.concurrency_limit > 0 THEN k.concurrency_limit ELSE COALESCE(u.concurrency_limit, 0) END,
+		       k.allowed_endpoints
 		FROM api_keys k
 		JOIN users u ON u.id = k.user_id
 		WHERE k.key_hash=$1 AND k.deleted_at IS NULL
@@ -231,6 +233,15 @@ func (r APIKeyRepository) DisableByUser(ctx context.Context, userID string) erro
 		return err
 	}
 	_, err = r.db.Exec(ctx, "UPDATE api_keys SET status='disabled', updated_at=now() WHERE user_id=$1 AND deleted_at IS NULL", userID)
+	if err != nil {
+		return err
+	}
+	r.invalidateHashes(ctx, hashes)
+	return nil
+}
+
+func (r APIKeyRepository) InvalidateByUser(ctx context.Context, userID string) error {
+	hashes, err := r.hashesByUser(ctx, userID)
 	if err != nil {
 		return err
 	}

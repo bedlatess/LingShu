@@ -22,7 +22,7 @@ if (!i18n.isInitialized) {
       fallbackLng: "en",
       supportedLngs: ["en", "zh"],
       defaultNS: "common",
-      ns: ["common", "navigation", "auth", "dashboard", "keys", "usage", "pricing", "models", "redeem", "announcements", "settings", "admin"],
+      ns: ["common", "navigation", "auth", "dashboard", "docs", "keys", "usage", "pricing", "models", "redeem", "announcements", "settings", "admin"],
       interpolation: {
         escapeValue: false
       },

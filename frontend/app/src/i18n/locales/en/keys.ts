@@ -7,6 +7,7 @@ const keys = {
   defaultName: "Default Key",
   createAction: "Create",
   createSuccess: "API key created",
+  copyBaseURLSuccess: "base_url copied",
   updateSuccess: "API key updated",
   deleteSuccess: "API key deleted",
   deleteConfirm: "Delete this API key? Requests using it will no longer be able to access the gateway.",
@@ -20,6 +21,8 @@ const keys = {
     status: "Status",
     createdAt: "Created At",
     actions: "Actions",
+    copyBaseURL: "Copy base_url",
+    docs: "Examples",
     edit: "Edit",
     delete: "Delete"
   },

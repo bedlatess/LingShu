@@ -2,7 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import type { GatewayLog, LedgerRecord, ReportRow, createAPI } from "@lingshu/shared";
 import { Button, Card, CardContent, DataTable, PageHeader, TabsList, TabsTrigger } from "@lingshu/ui";
-import { exportCSV, fmtMoney, formatDateMinute, MiniBars } from "./admin-page-utils";
+import { downloadBlob, exportCSV, fmtMoney, formatDateMinute, MiniBars } from "./admin-page-utils";
 
 type AdminAPI = ReturnType<typeof createAPI>;
 type ReportTab = "daily" | "user" | "model" | "channel" | "logs" | "ledger";
@@ -34,7 +34,11 @@ export function ReportsPage({ api }: { api: AdminAPI }) {
 
   return (
     <div className="page-grid">
-      <PageHeader eyebrow={t("reports.eyebrow")} title={t("reports.title")} description={t("reports.description")} action={<Button variant="secondary" onClick={() => exportCSV(`report-${tab}.csv`, (tab === "logs" ? logs : tab === "ledger" ? ledger : rows) as object[])}>{t("common.exportCSV")}</Button>} />
+      <PageHeader eyebrow={t("reports.eyebrow")} title={t("reports.title")} description={t("reports.description")} action={<Button variant="secondary" onClick={() => {
+        if (tab === "logs") void downloadBlob("admin-usage.csv", api.downloadAdminUsageCSV);
+        else if (tab === "ledger") void downloadBlob("admin-ledger.csv", api.downloadAdminLedgerCSV);
+        else exportCSV(`report-${tab}.csv`, rows);
+      }}>{t("common.exportCSV")}</Button>} />
       <TabsList>{(["daily", "user", "model", "channel", "logs", "ledger"] as ReportTab[]).map((value) => <TabsTrigger key={value} value={value} activeValue={tab} onSelect={(next) => setTab(next as ReportTab)}>{label(value, t)}</TabsTrigger>)}</TabsList>
       {tab === "logs" ? (
         <DataTable

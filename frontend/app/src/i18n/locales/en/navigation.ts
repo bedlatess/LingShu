@@ -8,6 +8,7 @@ const navigation = {
   logout: "Log out",
   userSection: {
     dashboard: "Overview",
+    docs: "Docs",
     apiKeys: "API Keys",
     usage: "Usage",
     models: "Models",

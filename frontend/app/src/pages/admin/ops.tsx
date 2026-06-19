@@ -110,6 +110,26 @@ export function OpsPage({ api }: { api: AdminAPI }) {
   return (
     <div className="page-grid">
       <PageHeader eyebrow={t("ops.eyebrow")} title={t("ops.title")} description={t("ops.description")} />
+      {data?.alerts?.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("ops.activeAlerts")}</CardTitle>
+            <CardDescription>{t("ops.activeAlertsDescription")}</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {data.alerts.map((alert) => (
+              <div key={alert.id} className="rounded-md border border-[var(--danger)]/40 bg-[var(--danger)]/5 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={alert.severity === "critical" ? "danger" : alert.severity === "warning" ? "warning" : "muted"}>{alert.severity}</Badge>
+                  <span className="font-medium text-foreground">{alert.title}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{alert.rule_key}</span>
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">{alert.message}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
       <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
         <StatCard label="RPM" value={summary?.rpm ?? 0} hint={t("ops.lastMinute")} icon={Zap} />
         <StatCard label="TPM" value={summary?.tpm ?? 0} hint={t("ops.lastMinute")} icon={Activity} />

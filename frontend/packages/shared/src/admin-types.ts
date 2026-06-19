@@ -18,6 +18,7 @@ export type {
   ModelStat,
   OpsChannelHealth,
   OpsDashboard,
+  OpsAlert,
   OpsStatusBucket,
   OpsSummary,
   OpsTrendPoint,

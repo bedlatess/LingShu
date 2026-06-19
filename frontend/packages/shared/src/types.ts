@@ -20,6 +20,9 @@ export interface User {
   role: Role;
   status: "active" | "banned";
   balance: string;
+  rpm_limit?: number;
+  concurrency_limit?: number;
+  token_revoked_at?: string;
   created_at: string;
 }
 
@@ -341,11 +344,26 @@ export interface OpsStatusBucket {
   count: number;
 }
 
+export interface OpsAlert {
+  id: string;
+  rule_key: string;
+  severity: string;
+  target_type: string;
+  target_id: string;
+  title: string;
+  message: string;
+  status: string;
+  last_notified_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface OpsDashboard {
   summary: OpsSummary;
   trends: OpsTrendPoint[];
   channels: OpsChannelHealth[];
   statuses: OpsStatusBucket[];
+  alerts: OpsAlert[];
 }
 
 export interface LoginResponse {
@@ -379,6 +397,7 @@ export interface PublicSiteInfo {
   brand_primary_color: string;
   captcha_enabled: boolean;
   captcha_provider: string;
+  captcha_site_key: string;
   login_url: string;
 }
 

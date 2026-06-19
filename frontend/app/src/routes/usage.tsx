@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
 import type { UserDailyStat, UserGatewayLog, UserLedgerRecord, UserModelStat } from "@lingshu/shared/user-types";
 
-import { Card, CardContent, CardHeader, CardTitle, DataTable, Dialog, EmptyState, Input, PageHeader, TabsList, TabsTrigger, Tag } from "@lingshu/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle, DataTable, Dialog, EmptyState, Input, PageHeader, TabsList, TabsTrigger, Tag, toast } from "@lingshu/ui";
 import { MeasuredChart } from "@/components/measured-chart";
 import { useAuth } from "@/providers/auth";
 import { formatMoney } from "@/lib/utils";
@@ -69,9 +69,25 @@ export function UsagePage() {
   const visibleLogs = React.useMemo(() => filteredLogs(logs, query, status, dateRange), [logs, query, status, dateRange]);
   const inFlightLogs = React.useMemo(() => logs.filter(isInFlightLog), [logs]);
 
+  async function downloadUsageCSV() {
+    try {
+      const blob = await api.downloadUserUsageCSV();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "usage.csv";
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "导出失败");
+    }
+  }
+
   return (
     <div className="page-grid">
-      <PageHeader eyebrow={t("eyebrow")} title={t("title")} description={t("description")} />
+      <PageHeader eyebrow={t("eyebrow")} title={t("title")} description={t("description")} action={<Button variant="secondary" onClick={() => void downloadUsageCSV()}>{t("exportCSV", "导出 CSV")}</Button>} />
       <TabsList>
         {tabs.map(([value, label]) => <TabsTrigger key={value} value={value} activeValue={active} onSelect={(next) => setActive(next as UsageTab)}>{label}</TabsTrigger>)}
       </TabsList>

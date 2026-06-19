@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 import type { APIKey, GatewayLog, LedgerRecord, User, createAPI } from "@lingshu/shared";
 import { Badge, Button, Card, CardContent, DataTable, Dialog, EmptyState, Input, PageHeader, Pagination, Select, StatCard, toast } from "@lingshu/ui";
-import { Activity, KeyRound, WalletCards } from "lucide-react";
-import { errText, exportCSV, fmtMoney, formatDateMinute, runWrite, statusVariant, type Pager } from "./admin-page-utils";
+import { Activity, KeyRound, ShieldOff, TimerReset, WalletCards } from "lucide-react";
+import { downloadBlob, errText, exportCSV, fmtMoney, formatDateMinute, runWrite, statusVariant, type Pager } from "./admin-page-utils";
 
 type AdminAPI = ReturnType<typeof createAPI>;
 
@@ -103,12 +103,18 @@ export function UserDetailPage({ api }: { api: AdminAPI }) {
   const [logs, setLogs] = React.useState<GatewayLog[]>([]);
   const [ledger, setLedger] = React.useState<LedgerRecord[]>([]);
   const [error, setError] = React.useState("");
+  const [balanceOpen, setBalanceOpen] = React.useState(false);
+  const [balanceForm, setBalanceForm] = React.useState({ amount: "", remark: "" });
+  const [passwordOpen, setPasswordOpen] = React.useState(false);
+  const [newPassword, setNewPassword] = React.useState("");
+  const [limits, setLimits] = React.useState({ rpm_limit: 0, concurrency_limit: 0 });
 
   async function refresh() {
     if (!id) return;
     try {
       const [userItem, keyList, logList, ledgerList, summaryItem] = await Promise.all([api.getUser(id), api.adminUserAPIKeys(id, 1, 20), api.adminUserLogs(id, 1, 20), api.adminUserLedger(id, 1, 20), api.adminUserSummary(id)]);
       setUser(userItem);
+      setLimits({ rpm_limit: userItem.rpm_limit ?? 0, concurrency_limit: userItem.concurrency_limit ?? 0 });
       setAPIKeys(keyList.items);
       setLogs(logList.items);
       setLedger(ledgerList.items);
@@ -123,6 +129,39 @@ export function UserDetailPage({ api }: { api: AdminAPI }) {
   if (error) return <EmptyState title={t("users.loadingFailed")} description={error} />;
   if (!user) return <EmptyState title={t("users.loadingUser")} description={t("users.loadingUserDesc")} />;
 
+  async function adjustBalance(event: React.FormEvent) {
+    event.preventDefault();
+    if (!user) return;
+    await runWrite(async () => {
+      await api.adjustUserBalance(user.id, balanceForm);
+      toast.success(t("users.adjustSuccess"));
+      setBalanceOpen(false);
+      setBalanceForm({ amount: "", remark: "" });
+      await refresh();
+    }, t("users.adjustFailed"));
+  }
+
+  async function resetPassword(event: React.FormEvent) {
+    event.preventDefault();
+    if (!user) return;
+    await runWrite(async () => {
+      await api.resetUserPassword(user.id, newPassword);
+      toast.success(t("users.resetPasswordSuccess"));
+      setPasswordOpen(false);
+      setNewPassword("");
+    }, t("users.resetPasswordFailed"));
+  }
+
+  async function saveLimits(event: React.FormEvent) {
+    event.preventDefault();
+    if (!user) return;
+    await runWrite(async () => {
+      await api.updateUserLimits(user.id, limits);
+      toast.success(t("users.limitsSuccess"));
+      await refresh();
+    }, t("users.limitsFailed"));
+  }
+
   return (
     <div className="page-grid">
       <PageHeader eyebrow={t("users.detailEyebrow")} title={user.username} description={t("users.userId", { id: user.id })} action={<Button variant="secondary" onClick={() => exportCSV(`user-${user.id}-logs.csv`, logs)}>{t("users.exportRequests")}</Button>} />
@@ -131,6 +170,26 @@ export function UserDetailPage({ api }: { api: AdminAPI }) {
         <StatCard label={t("users.totalCharge")} value={fmtMoney(summary?.total_charge)} hint={t("users.ledgerSummary")} icon={Activity} />
         <StatCard label="API Key" value={apiKeys.length} hint={t("users.latest20")} icon={KeyRound} />
       </section>
+      <Card>
+        <CardContent className="grid gap-4 p-5 xl:grid-cols-[1fr_auto]">
+          <form className="grid gap-3 md:grid-cols-[1fr_1fr_auto]" onSubmit={saveLimits}>
+            <label className="grid gap-2 text-sm">{t("users.rpmLimit")}<Input type="number" min={0} value={limits.rpm_limit} onChange={(e) => setLimits({ ...limits, rpm_limit: Number(e.target.value) })} /></label>
+            <label className="grid gap-2 text-sm">{t("users.concurrencyLimit")}<Input type="number" min={0} value={limits.concurrency_limit} onChange={(e) => setLimits({ ...limits, concurrency_limit: Number(e.target.value) })} /></label>
+            <Button className="self-end" type="submit">{t("users.saveLimits")}</Button>
+          </form>
+          <div className="flex flex-wrap items-end gap-2">
+            <Button variant="secondary" onClick={() => setBalanceOpen(true)}>{t("users.balanceAction")}</Button>
+            <Button variant="secondary" onClick={() => setPasswordOpen(true)}>{t("users.resetPassword")}</Button>
+            <Button variant="secondary" onClick={() => runWrite(async () => { await api.revokeUserTokens(user.id); toast.success(t("users.revokeSuccess")); await refresh(); }, t("users.revokeFailed"))}><TimerReset className="size-4" />{t("users.revokeTokens")}</Button>
+            {user.status === "active" ? (
+              <Button variant="destructive" onClick={() => runWrite(async () => { await api.banUser(user.id); toast.success(t("users.banSuccess")); await refresh(); }, t("users.banFailed"))}><ShieldOff className="size-4" />{t("users.ban")}</Button>
+            ) : (
+              <Button variant="secondary" onClick={() => runWrite(async () => { await api.unbanUser(user.id); toast.success(t("users.unbanSuccess")); await refresh(); }, t("users.unbanFailed"))}>{t("users.unban")}</Button>
+            )}
+            <Button variant="secondary" onClick={() => void downloadBlob(`user-${user.id}-usage.csv`, () => api.downloadAdminUserUsageCSV(user.id))}>{t("users.exportServerCSV")}</Button>
+          </div>
+        </CardContent>
+      </Card>
       <DataTable
         data={apiKeys}
         rowKey={(row) => row.id}
@@ -165,6 +224,19 @@ export function UserDetailPage({ api }: { api: AdminAPI }) {
           { key: "created_at", title: t("common.time"), render: (row) => formatDateMinute(row.created_at) }
         ]}
       />
+      <Dialog open={balanceOpen} title={t("users.adjustBalanceFor", { name: user.username })} onClose={() => setBalanceOpen(false)}>
+        <form className="grid gap-4" onSubmit={adjustBalance}>
+          <label className="grid gap-2 text-sm">{t("common.amount")}<Input value={balanceForm.amount} onChange={(e) => setBalanceForm({ ...balanceForm, amount: e.target.value })} placeholder={t("users.amountHelp")} required /></label>
+          <label className="grid gap-2 text-sm">{t("users.remark")}<Input value={balanceForm.remark} onChange={(e) => setBalanceForm({ ...balanceForm, remark: e.target.value })} placeholder={t("users.remarkPlaceholder")} required /></label>
+          <div className="flex justify-end gap-2"><Button variant="secondary" type="button" onClick={() => setBalanceOpen(false)}>{t("common.cancel")}</Button><Button type="submit">{t("users.confirmAdjust")}</Button></div>
+        </form>
+      </Dialog>
+      <Dialog open={passwordOpen} title={t("users.resetPassword")} onClose={() => setPasswordOpen(false)}>
+        <form className="grid gap-4" onSubmit={resetPassword}>
+          <label className="grid gap-2 text-sm">{t("users.newPassword")}<Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={8} required /></label>
+          <div className="flex justify-end gap-2"><Button variant="secondary" type="button" onClick={() => setPasswordOpen(false)}>{t("common.cancel")}</Button><Button type="submit">{t("users.confirmResetPassword")}</Button></div>
+        </form>
+      </Dialog>
     </div>
   );
 }

@@ -10,17 +10,20 @@ import (
 )
 
 type User struct {
-	ID            string     `json:"id"`
-	Username      string     `json:"username"`
-	Email         string     `json:"email"`
-	PasswordHash  string     `json:"-"`
-	Role          string     `json:"role"`
-	Status        string     `json:"status"`
-	Balance       string     `json:"balance"`
-	EmailVerified bool       `json:"email_verified"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
-	LastLoginAt   *time.Time `json:"last_login_at,omitempty"`
+	ID               string     `json:"id"`
+	Username         string     `json:"username"`
+	Email            string     `json:"email"`
+	PasswordHash     string     `json:"-"`
+	Role             string     `json:"role"`
+	Status           string     `json:"status"`
+	Balance          string     `json:"balance"`
+	EmailVerified    bool       `json:"email_verified"`
+	RPMLimit         int        `json:"rpm_limit"`
+	ConcurrencyLimit int        `json:"concurrency_limit"`
+	TokenRevokedAt   *time.Time `json:"token_revoked_at,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	LastLoginAt      *time.Time `json:"last_login_at,omitempty"`
 }
 
 type CreateUserParams struct {
@@ -39,6 +42,15 @@ type UpdateUserParams struct {
 	Username *string
 }
 
+type UpdateUserLimitsParams struct {
+	ID               string
+	RPMLimit         int
+	ConcurrencyLimit int
+}
+
+const userSelectColumns = `id::text, username, COALESCE(email, ''), password_hash, role, status, balance::text, email_verified,
+	COALESCE(rpm_limit, 0), COALESCE(concurrency_limit, 0), token_revoked_at, created_at, updated_at, last_login_at`
+
 type UserRepository struct {
 	db *pgxpool.Pool
 }
@@ -49,7 +61,7 @@ func NewUserRepository(db *pgxpool.Pool) UserRepository {
 
 func (r UserRepository) FindByUsernameOrEmail(ctx context.Context, login string) (User, error) {
 	row := r.db.QueryRow(ctx, `
-		SELECT id::text, username, COALESCE(email, ''), password_hash, role, status, balance::text, email_verified, created_at, updated_at, last_login_at
+		SELECT `+userSelectColumns+`
 		FROM users
 		WHERE username=$1 OR email=$1
 	`, login)
@@ -58,7 +70,7 @@ func (r UserRepository) FindByUsernameOrEmail(ctx context.Context, login string)
 
 func (r UserRepository) FindByID(ctx context.Context, id string) (User, error) {
 	row := r.db.QueryRow(ctx, `
-		SELECT id::text, username, COALESCE(email, ''), password_hash, role, status, balance::text, email_verified, created_at, updated_at, last_login_at
+		SELECT `+userSelectColumns+`
 		FROM users
 		WHERE id=$1
 	`, id)
@@ -67,7 +79,7 @@ func (r UserRepository) FindByID(ctx context.Context, id string) (User, error) {
 
 func (r UserRepository) List(ctx context.Context) ([]User, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id::text, username, COALESCE(email, ''), password_hash, role, status, balance::text, email_verified, created_at, updated_at, last_login_at
+		SELECT `+userSelectColumns+`
 		FROM users
 		ORDER BY created_at DESC
 	`)
@@ -93,7 +105,7 @@ func (r UserRepository) ListPaged(ctx context.Context, limit, offset int) ([]Use
 		return nil, 0, err
 	}
 	rows, err := r.db.Query(ctx, `
-		SELECT id::text, username, COALESCE(email, ''), password_hash, role, status, balance::text, email_verified, created_at, updated_at, last_login_at
+		SELECT `+userSelectColumns+`
 		FROM users
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2
@@ -118,7 +130,7 @@ func (r UserRepository) Create(ctx context.Context, params CreateUserParams) (Us
 	row := r.db.QueryRow(ctx, `
 		INSERT INTO users (username, email, password_hash, role, status, email_verified)
 		VALUES ($1, NULLIF($2, ''), $3, $4, $5, $6)
-		RETURNING id::text, username, COALESCE(email, ''), password_hash, role, status, balance::text, email_verified, created_at, updated_at, last_login_at
+		RETURNING `+userSelectColumns+`
 	`, params.Username, params.Email, params.PasswordHash, params.Role, params.Status, params.EmailVerified)
 	return scanUser(row)
 }
@@ -144,8 +156,28 @@ func (r UserRepository) Update(ctx context.Context, params UpdateUserParams) (Us
 		UPDATE users
 		SET username=$2, email=NULLIF($3, ''), status=$4, updated_at=now()
 		WHERE id=$1
-		RETURNING id::text, username, COALESCE(email, ''), password_hash, role, status, balance::text, email_verified, created_at, updated_at, last_login_at
+		RETURNING `+userSelectColumns+`
 	`, params.ID, username, email, status)
+	return scanUser(row)
+}
+
+func (r UserRepository) UpdateLimits(ctx context.Context, params UpdateUserLimitsParams) (User, error) {
+	row := r.db.QueryRow(ctx, `
+		UPDATE users
+		SET rpm_limit=$2, concurrency_limit=$3, updated_at=now()
+		WHERE id=$1
+		RETURNING `+userSelectColumns+`
+	`, params.ID, params.RPMLimit, params.ConcurrencyLimit)
+	return scanUser(row)
+}
+
+func (r UserRepository) RevokeTokens(ctx context.Context, id string) (User, error) {
+	row := r.db.QueryRow(ctx, `
+		UPDATE users
+		SET token_revoked_at=now(), updated_at=now()
+		WHERE id=$1
+		RETURNING `+userSelectColumns+`
+	`, id)
 	return scanUser(row)
 }
 
@@ -181,7 +213,7 @@ func (r UserRepository) AdjustBalance(ctx context.Context, userID, operatorID, a
 		UPDATE users
 		SET balance = balance + $2::numeric, updated_at=now()
 		WHERE id=$1 AND balance + $2::numeric >= 0
-		RETURNING id::text, username, COALESCE(email, ''), password_hash, role, status, balance::text, email_verified, created_at, updated_at, last_login_at
+		RETURNING `+userSelectColumns+`
 	`, userID, amount)
 	after, err := scanUser(row)
 	if err != nil {
@@ -215,6 +247,9 @@ func scanUser(row rowScanner) (User, error) {
 		&user.Status,
 		&user.Balance,
 		&user.EmailVerified,
+		&user.RPMLimit,
+		&user.ConcurrencyLimit,
+		&user.TokenRevokedAt,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 		&user.LastLoginAt,

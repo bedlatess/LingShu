@@ -1,5 +1,5 @@
 import React from "react";
-import { Activity, Bell, Command as CommandIcon, FileText, Gauge, KeyRound, LogOut, Moon, PanelTop, RadioTower, ScrollText, Settings, Sun, Ticket, Users, WalletCards, Waypoints } from "lucide-react";
+import { Activity, Bell, BookOpen, Command as CommandIcon, FileText, Gauge, KeyRound, LogOut, Moon, PanelTop, RadioTower, ScrollText, Settings, Sun, Ticket, Users, WalletCards, Waypoints } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -20,6 +20,7 @@ type NavItemConfig = {
 
 const userNavItems: NavItemConfig[] = [
   { to: "/dashboard", labelKey: "dashboard", fallbackLabel: "Dashboard", icon: Gauge, hint: "g+d" },
+  { to: "/docs", labelKey: "docs", fallbackLabel: "Docs", icon: BookOpen },
   { to: "/api-keys", labelKey: "apiKeys", fallbackLabel: "API Keys", icon: KeyRound },
   { to: "/usage", labelKey: "usage", fallbackLabel: "Usage", icon: Activity, hint: "g+u" },
   { to: "/models", labelKey: "models", fallbackLabel: "Models", icon: PanelTop },

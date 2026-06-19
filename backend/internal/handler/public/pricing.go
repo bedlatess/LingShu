@@ -56,6 +56,7 @@ func (h Handler) SiteInfo(w http.ResponseWriter, r *http.Request) {
 		"brand_primary_color",
 		"captcha_enabled",
 		"captcha_provider",
+		"captcha_site_key",
 	)
 	if err != nil {
 		httpx.Error(w, http.StatusInternalServerError, err.Error())
@@ -80,6 +81,7 @@ func (h Handler) SiteInfo(w http.ResponseWriter, r *http.Request) {
 		"brand_primary_color":  firstSetting(settings, "brand_primary_color", ""),
 		"captcha_enabled":      firstSetting(settings, "captcha_enabled", "false") == "true",
 		"captcha_provider":     firstSetting(settings, "captcha_provider", ""),
+		"captcha_site_key":     firstSetting(settings, "captcha_site_key", ""),
 		"login_url":            "/login",
 	})
 }

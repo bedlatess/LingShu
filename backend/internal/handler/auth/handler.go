@@ -73,6 +73,7 @@ func (h Handler) Register(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, "invalid json")
 		return
 	}
+	req.RemoteIP = clientIP(r)
 	user, err := h.auth.Register(r.Context(), req)
 	if err != nil {
 		status := http.StatusBadRequest
@@ -91,7 +92,7 @@ func (h Handler) SendEmailCode(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, "invalid json")
 		return
 	}
-	if err := h.auth.SendEmailCode(r.Context(), req.Purpose, req.Email, req.Captcha); err != nil {
+	if err := h.auth.SendEmailCode(r.Context(), req.Purpose, req.Email, req.Captcha, clientIP(r)); err != nil {
 		writeAuthError(w, err)
 		return
 	}
@@ -104,7 +105,7 @@ func (h Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, "invalid json")
 		return
 	}
-	if err := h.auth.ForgotPassword(r.Context(), req.Email, req.Captcha); err != nil {
+	if err := h.auth.ForgotPassword(r.Context(), req.Email, req.Captcha, clientIP(r)); err != nil {
 		writeAuthError(w, err)
 		return
 	}
@@ -174,6 +175,10 @@ func writeAuthError(w http.ResponseWriter, err error) {
 		httpx.Error(w, http.StatusBadRequest, "invalid credentials")
 	case errors.Is(err, service.ErrCaptchaRequired):
 		httpx.Error(w, http.StatusBadRequest, "captcha token required")
+	case errors.Is(err, service.ErrCaptchaNotConfigured):
+		httpx.Error(w, http.StatusServiceUnavailable, "captcha is not configured")
+	case errors.Is(err, service.ErrInvalidCaptcha):
+		httpx.Error(w, http.StatusBadRequest, "invalid captcha token")
 	default:
 		httpx.Error(w, http.StatusBadRequest, err.Error())
 	}

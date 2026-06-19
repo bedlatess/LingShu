@@ -32,6 +32,22 @@ export function createAPI(token?: string) {
     return requestWithRetry<T>(path, init);
   }
 
+  async function download(path: string): Promise<Blob> {
+    const headers = new Headers();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+    const response = await fetch(`${apiBaseURL}${path}`, { headers });
+    if (!response.ok) {
+      if (response.status === 401 && typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent(unauthorizedEvent));
+      }
+      const body = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(errorMessageFromBody(body, response.statusText));
+    }
+    return response.blob();
+  }
+
   async function requestWithRetry<T>(path: string, init: RequestInit = {}): Promise<T> {
     const method = String(init.method ?? "GET").toUpperCase();
     try {
@@ -136,6 +152,19 @@ export function createAPI(token?: string) {
       }),
     banUser: (id: string) =>
       request<User>(`/api/admin/users/${id}/ban`, {
+        method: "POST"
+      }),
+    unbanUser: (id: string) =>
+      request<User>(`/api/admin/users/${id}/unban`, {
+        method: "POST"
+      }),
+    updateUserLimits: (id: string, payload: { rpm_limit: number; concurrency_limit: number }) =>
+      request<User>(`/api/admin/users/${id}/limits`, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      }),
+    revokeUserTokens: (id: string) =>
+      request<User>(`/api/admin/users/${id}/revoke-tokens`, {
         method: "POST"
       }),
     auditCount: () => request<{ count: number }>("/api/admin/audit-count"),
@@ -331,6 +360,10 @@ export function createAPI(token?: string) {
     adminReportByChannel: (from?: string, to?: string) => request<{ items: ReportRow[] }>(withQuery("/api/admin/reports/by-channel", { from, to })),
     adminLogs: (page?: number, limit?: number) => request<PaginatedResponse<GatewayLog>>(withQuery("/api/admin/gateway-requests", { page, limit })),
     adminLedger: (page?: number, limit?: number) => request<PaginatedResponse<LedgerRecord>>(withQuery("/api/admin/balance-ledger", { page, limit })),
+    downloadAdminUsageCSV: () => download("/api/admin/usage/export.csv"),
+    downloadAdminLedgerCSV: () => download("/api/admin/ledger/export.csv"),
+    downloadAdminUserUsageCSV: (id: string) => download(`/api/admin/users/${id}/usage/export.csv`),
+    downloadUserUsageCSV: () => download("/api/user/usage/export.csv"),
     userLogs: () => request<{ items: UserGatewayLog[] }>("/api/user/usage/logs"),
     userLedger: () => request<{ items: UserLedgerRecord[] }>("/api/user/usage/ledger"),
     userDailyStats: () => request<{ items: DailyStat[] }>("/api/user/usage/stats/daily?days=7"),

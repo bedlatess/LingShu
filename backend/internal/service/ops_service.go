@@ -59,13 +59,14 @@ type OpsDashboard struct {
 	Trends   []OpsTrendPoint    `json:"trends"`
 	Channels []OpsChannelHealth `json:"channels"`
 	Statuses []OpsStatusBucket  `json:"statuses"`
+	Alerts   []OpsAlert         `json:"alerts"`
 }
 
 func NewOpsService(db *pgxpool.Pool) OpsService {
 	return OpsService{db: db}
 }
 
-func (s OpsService) Dashboard(ctx context.Context) (OpsDashboard, error) {
+func (s OpsService) Dashboard(ctx context.Context, alerts ...OpsAlertService) (OpsDashboard, error) {
 	summary, err := s.summary(ctx)
 	if err != nil {
 		return OpsDashboard{}, err
@@ -82,7 +83,15 @@ func (s OpsService) Dashboard(ctx context.Context) (OpsDashboard, error) {
 	if err != nil {
 		return OpsDashboard{}, err
 	}
-	return OpsDashboard{Summary: summary, Trends: trends, Channels: channels, Statuses: statuses}, nil
+	activeAlerts := []OpsAlert{}
+	if len(alerts) > 0 {
+		var err error
+		activeAlerts, err = alerts[0].Active(ctx)
+		if err != nil {
+			return OpsDashboard{}, err
+		}
+	}
+	return OpsDashboard{Summary: summary, Trends: trends, Channels: channels, Statuses: statuses, Alerts: activeAlerts}, nil
 }
 
 func (s OpsService) summary(ctx context.Context) (OpsSummary, error) {

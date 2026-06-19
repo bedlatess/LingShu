@@ -1,5 +1,6 @@
 import React from "react";
-import { Copy, KeyRound, Pencil, Plus, Trash2 } from "lucide-react";
+import { BookOpen, Copy, KeyRound, Link as LinkIcon, Pencil, Plus, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { APIKey, CreatedAPIKey } from "@lingshu/shared/user-types";
 
@@ -20,6 +21,7 @@ export function ApiKeysPage() {
   const [editName, setEditName] = React.useState("");
   const [editAllowAll, setEditAllowAll] = React.useState(true);
   const [editEndpoints, setEditEndpoints] = React.useState<string[]>([]);
+  const baseURL = React.useMemo(() => `${window.location.origin}/v1`, []);
 
   async function refresh() {
     const result = await api.userAPIKeys();
@@ -96,6 +98,10 @@ export function ApiKeysPage() {
           { key: "created_at", title: t("table.createdAt"), render: (row) => new Date(row.created_at).toLocaleString(i18n.resolvedLanguage === "zh" ? "zh-CN" : "en-US", { hour12: false }) },
           { key: "actions", title: t("table.actions"), render: (row) => (
             <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" size="sm" onClick={async () => {
+                if (await copyText(baseURL)) toast.success(t("copyBaseURLSuccess"));
+              }}><LinkIcon className="h-4 w-4" />{t("table.copyBaseURL")}</Button>
+              <Button asChild variant="secondary" size="sm"><Link to="/docs"><BookOpen className="h-4 w-4" />{t("table.docs")}</Link></Button>
               <Button variant="secondary" size="sm" onClick={() => startEdit(row)}><Pencil className="h-4 w-4" />{t("table.edit")}</Button>
               <Button variant="destructive" size="sm" onClick={() => removeKey(row.id)}><Trash2 className="h-4 w-4" />{t("table.delete")}</Button>
             </div>
