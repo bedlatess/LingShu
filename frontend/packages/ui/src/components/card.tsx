@@ -8,7 +8,7 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export const Card = React.forwardRef<HTMLDivElement, CardProps>(({ className, asChild = false, ...props }, ref) => {
   const Comp = asChild ? Slot : "div";
-  return <Comp ref={ref} className={cn("rounded-lg border border-border bg-card text-card-foreground shadow-[var(--shadow-xs)]", className)} {...props} />;
+  return <Comp ref={ref} className={cn("rounded-lg border border-border bg-card text-card-foreground shadow-[var(--shadow-xs)] transition-shadow duration-200 ease-out hover:shadow-[var(--shadow-sm)]", className)} {...props} />;
 });
 Card.displayName = "Card";
 

@@ -6,6 +6,15 @@ const navigation = {
   commandPlaceholder: "Search pages or actions",
   commandEmpty: "No matches found",
   logout: "Log out",
+  groups: {
+    overview: "Overview",
+    resources: "Resources",
+    account: "Account",
+    operations: "Operations",
+    access: "Users & Access",
+    service: "Service Config",
+    system: "System"
+  },
   userSection: {
     dashboard: "Overview",
     docs: "Docs",

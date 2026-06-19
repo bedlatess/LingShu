@@ -6,7 +6,7 @@ import { initReactI18next } from "react-i18next";
 export const LOCALE_STORAGE_KEY = "lingshu_locale";
 export const availableLocales = [
   { code: "en", name: "English", flag: "US" },
-  { code: "zh", name: "Chinese", flag: "CN" }
+  { code: "zh", name: "简体中文", flag: "CN" }
 ] as const;
 
 export type LocaleCode = (typeof availableLocales)[number]["code"];

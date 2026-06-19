@@ -123,7 +123,7 @@ function claudeSnippet(baseURL: string) {
 
 function codexSnippet(baseURL: string) {
   return [
-    `export OPENAI_BASE_URL="${baseURL}"`,
+    `export OPENAI_BASE_URL="${baseURL}/v1"`,
     `export OPENAI_API_KEY="ls-your-api-key"`,
     "",
     "codex"

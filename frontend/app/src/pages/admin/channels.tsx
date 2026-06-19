@@ -1,9 +1,9 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
-import type { Channel, ChannelDetail, createAPI } from "@lingshu/shared";
+import type { Channel, ChannelDetail, ChannelModelSyncResult, createAPI } from "@lingshu/shared";
 import { Badge, Button, Card, CardContent, DataTable, Dialog, Input, PageHeader, Pagination, Select, StatCard, toast } from "@lingshu/ui";
-import { Activity, Clock, RadioTower } from "lucide-react";
+import { Activity, Clock, RadioTower, RefreshCw } from "lucide-react";
 import { formatDateMinute, providerOptions, runWrite, statusVariant, type Pager } from "./admin-page-utils";
 
 type AdminAPI = ReturnType<typeof createAPI>;
@@ -103,11 +103,74 @@ export function ChannelDetailPage({ api }: { api: AdminAPI }) {
   const { t } = useTranslation("admin");
   const { id } = useParams();
   const [detail, setDetail] = React.useState<ChannelDetail | null>(null);
-  React.useEffect(() => { if (id) api.getChannelDetail(id).then(setDetail); }, [api, id]);
+  const [sync, setSync] = React.useState<ChannelModelSyncResult | null>(null);
+  const [selected, setSelected] = React.useState<Record<string, boolean>>({});
+  const [busy, setBusy] = React.useState(false);
+
+  async function loadDetail() {
+    if (id) setDetail(await api.getChannelDetail(id));
+  }
+  React.useEffect(() => { loadDetail(); }, [api, id]);
+
+  const boundUpstream = React.useMemo(
+    () => new Set((sync?.existing_bindings ?? []).map((b) => b.upstream_model_name)),
+    [sync]
+  );
+  const newModels = React.useMemo(
+    () => (sync?.upstream_models ?? []).filter((m) => !boundUpstream.has(m.id)),
+    [sync, boundUpstream]
+  );
+
+  async function openSync() {
+    if (!id) return;
+    await runWrite(async () => {
+      const result = await api.syncChannelModels(id);
+      setSync(result);
+      const next: Record<string, boolean> = {};
+      result.upstream_models.forEach((m) => {
+        if (!result.existing_bindings.some((b) => b.upstream_model_name === m.id)) next[m.id] = true;
+      });
+      setSelected(next);
+    }, t("channels.syncFailed"));
+  }
+
+  async function confirmSync() {
+    if (!id || !sync) return;
+    const picks = newModels.filter((m) => selected[m.id]);
+    if (picks.length === 0) {
+      toast.error(t("channels.syncNoSelection"));
+      return;
+    }
+    setBusy(true);
+    await runWrite(async () => {
+      await api.importChannelModels(id, {
+        strategy: "create_or_bind",
+        models: picks.map((m) => ({
+          upstream_name: m.id,
+          public_name: m.id,
+          type: m.type || "chat",
+          billing_mode: "token",
+          input_price_per_1k: "0",
+          output_price_per_1k: "0",
+          rate_multiplier: "1.200"
+        }))
+      });
+      toast.success(t("channels.syncImported", { count: picks.length }));
+      setSync(null);
+      await loadDetail();
+    }, t("channels.syncFailed"));
+    setBusy(false);
+  }
+
   if (!detail) return <PageHeader title={t("channels.detailTitle")} description={t("channels.loadingDetail")} />;
   return (
     <div className="page-grid">
-      <PageHeader eyebrow={t("channels.detailTitle")} title={detail.channel.name} description={detail.channel.base_url} />
+      <PageHeader
+        eyebrow={t("channels.detailTitle")}
+        title={detail.channel.name}
+        description={detail.channel.base_url}
+        action={<Button variant="secondary" onClick={openSync}><RefreshCw className="mr-1.5 size-4" />{t("channels.syncModels")}</Button>}
+      />
       <section className="grid gap-4 md:grid-cols-3">
         <StatCard label={t("channels.requests")} value={detail.stats.requests} hint={t("channels.failures", { count: detail.stats.failures })} icon={Activity} />
         <StatCard label={t("channels.averageLatency")} value={detail.stats.average_latency} hint={t("channels.milliseconds")} icon={Clock} />
@@ -123,6 +186,32 @@ export function ChannelDetailPage({ api }: { api: AdminAPI }) {
           { key: "created_at", title: t("channels.table.boundAt"), render: (row) => formatDateMinute(row.created_at) }
         ]}
       />
+      <Dialog open={Boolean(sync)} title={t("channels.syncTitle")} onClose={() => setSync(null)}>
+        {sync && (
+          <div className="grid gap-4">
+            <p className="text-sm text-muted-foreground">
+              {t("channels.syncSummary", { upstream: sync.upstream_models.length, bound: sync.existing_bindings.length, added: newModels.length })}
+            </p>
+            {newModels.length === 0 ? (
+              <p className="rounded-md border border-border bg-muted/30 px-3 py-6 text-center text-sm text-muted-foreground">{t("channels.syncAllBound")}</p>
+            ) : (
+              <div className="max-h-72 overflow-y-auto rounded-md border border-border">
+                {newModels.map((m) => (
+                  <label key={m.id} className="flex cursor-pointer items-center gap-3 border-b border-border/60 px-3 py-2 last:border-0 hover:bg-accent/30">
+                    <input type="checkbox" className="size-4 accent-[var(--clay)]" checked={Boolean(selected[m.id])} onChange={(e) => setSelected((prev) => ({ ...prev, [m.id]: e.target.checked }))} />
+                    <span className="font-mono text-sm">{m.id}</span>
+                    {m.type && <Badge variant="muted">{m.type}</Badge>}
+                  </label>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" type="button" onClick={() => setSync(null)}>{t("common.cancel")}</Button>
+              <Button type="button" disabled={busy || newModels.length === 0} onClick={confirmSync}>{t("channels.syncConfirm")}</Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
     </div>
   );
 }

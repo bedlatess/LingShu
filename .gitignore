@@ -10,3 +10,11 @@ coverage/
 tmp/
 backend/bin/
 
+# 对标参考仓库（仅本地参考，不纳入版本库）
+Sub/
+new/
+imge/
+
+# 构建产物
+*.tsbuildinfo
+

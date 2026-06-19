@@ -1,5 +1,5 @@
 # 灵枢前端生产镜像：构建单一 app SPA，由 Nginx 静态托管并反代后端。
-# 管理端挂在同一 app 的 /admin/* 路由下；8081 端口保留为旧管理入口兼容。
+# 管理端挂在同一 app 的 /admin/* 路由下，统一 80 端口。
 
 FROM node:20-alpine AS build
 WORKDIR /app
@@ -24,5 +24,5 @@ FROM nginx:1.27-alpine AS runtime
 # 单 app 站点根目录
 COPY --from=build /app/app/dist /usr/share/nginx/html/app
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80 8081
+EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

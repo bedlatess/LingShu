@@ -180,28 +180,16 @@ M6 真 Radix 化已完成，M7 交互质量随之达标，**无遗留**。
 
 ### 4.1 全局路线图（二轮审计后真实状态，2026-06-19）
 
-**✅ 已完成（勿重做）**：M1（缓存计费，留 1 小补丁）、M2（usage 富化）、M4 后端、M6（组件库真 Radix 化）、M7（admin 去 antd）、M8（单 app + 角色门控，留清理尾巴）、M9（i18n）、M11（主题切换）、M12.1 仪表盘、M13（兑换码）。
+**✅ 已完成（勿重做）**：M1（缓存计费，留 1 小补丁）、M2（usage 富化）、M4 后端、M6（组件库真 Radix 化）、M7（admin 去 antd）、M8（单 app + 角色门控）、M9（i18n）、M11（主题切换）、M12 全部 4 页增强、M13（兑换码）、**M14 邮箱体系、M15 防爆破+验证码、M16 法务合规、M17 接入文档修真、M18 确认弹窗、M19 告警UI+IM格式化、M22 IP展示+多维黑名单+防误封**。
 
-**🔴 待办，建议执行顺序**：
+**🔴 待办，本次要做**：
 
-**第一梯队 · 收尾（清理这轮尾巴，快）**
-1. **M8-收尾**：删旧 `frontend/admin`/`user` workspace + `user/src/components/ui/*` 死代码，让 `app` 成唯一前端。
-2. **M12 补完**：usage 时间过滤 + 真实时区块；pricing 详情抽屉；api-keys 端点白名单（依赖 M17 后端 `allowed_endpoints` 字段）。
-3. **M10 落地页**：仅剩这一项前端新建（framer-motion + Hero）。
+1. **M21 代码收敛 + BOM 修复 + 指纹加固**（P1）—— 8.1 节完整描述，一次性做完，不留半成品。
+2. **M23 注册送额度 + 防薅经济闸门**（P1，可选）—— 8.3 节完整描述，仅当确认做"注册送额度活动"时执行。
 
-**第二梯队 · 对外开门（P0，不做不能上线）— 第七部分**
-4. **M14 邮箱体系**（SMTP + 注册验证 + 找回密码 + 注册模式开关）——头号阻断项。
-5. **M15 登录防爆破**（IP/账号限流锁定 + 可选 captcha + banned 拦截）。
-6. **M16 法务合规**（ICP/公安备案位 + ToS/隐私 + 全局 footer + 品牌可配置）——国内上线硬门槛。
+**✅ 本轮 P1 已全部验收通过（勿重做）**：M17、M18、M19、M22。
 
-**第三梯队 · 运营增长（P1，上线即补）— 第七部分**
-7. **M17 接入文档页**（base_url + curl/Python/Node 示例 + 能力矩阵）+ Key 端点白名单后端字段。
-8. **M18 admin 用户运营**（调额/封禁/重置/下线五连）+ CSV 导出（user 端脱敏）。
-9. **M19 告警 + 渠道自愈**（规则引擎 + 邮件/Webhook + 连续失败自动 disabled）。
-
-**第四梯队 · 后端零散 + 增长期（随时可插 / P2）**
-10. 后端零散：**M1-补丁**（inbound cache）、**M3 剩余**（可变冷却 + 429 降权）、**M4-剩余**（ops 前端闲置字段）——独立于前端主线，可并行。
-11. **M20**（状态页 + SEO）、**M5 分组**、M-X：增长期按需。
+**🔴 明确不排入本轮**：M1-补丁、M3 剩余、M4-剩余、M5（分组）、M20（状态页+SEO）、M10（落地页）。增长期按需再做。
 
 > **依赖图**：前端主线已基本完成（M6→M8→M9/M11/M12.1）。剩余 = 收尾梯队（M8-收尾/M12 补完/M10）→ 运营 P0（M14→M15→M16）→ 运营 P1（M17→M18→M19）。后端零散（M1-补丁/M3/M4-剩余）无依赖可随时并行。**M16 是国内对外上线的硬门槛，M14 是用户可用的前提。**
 
@@ -584,50 +572,24 @@ pages/landing/
 
 **验收 M16**：footer 全站可见且 ICP/公安号正确链接；法务页可访问；注册必须勾选同意条款；admin 改 `site_name` 后前台即时生效（含 `<title>`）。
 
-## 7.4 里程碑 M17（P1）用户自助：接入文档页 + Key 易用性
+## 7.1～7.3 里程碑 M14 / M15 / M16　✅ 已完成（验收通过）
 
-**现状**：用户拿到 API Key 后**不知道怎么用**——无 base_url 展示、无 curl/SDK 示例、无能力矩阵。这是「半成品感」最强的地方。
+二轮验收结论，三个 P0 主干均已真实落地，**从待办移除**，仅保留结论备查：
+- **M14 邮箱体系**：`email_service.go` 真实 `net/smtp`+TLS，6 位验证码存 Redis（`email_code:{purpose}:{email}` TTL 10min、60s 冷却）；register/forgot/reset 全流程通；`registration_mode ∈ open|invite|closed`。✅
+- **M15 防爆破 + 验证码**：登录失败 IP+账号双轨锁定（5 次/15min，`login_lock:`）；banned 用户登录 403；**验证码已是真实 Turnstile/hCaptcha siteverify 远程验签**（`captcha_service.go:40-91`，上一轮发现的"只判 token 非空可绕过"已修复）。✅
+- **M16 法务合规**：迁移 0011 落地 19 项 site settings（smtp_*/captcha_*/site_icp/site_police_beian/tos_url/privacy_url/contact_email 等，`registration_mode` 默认 closed）；`public-footer.tsx` 全站 ICP→beian.miit + 公安备案 + ToS/隐私 + 联系邮箱；注册/找回页挂载验证码组件。✅
 
-**前端改动**（`frontend/app/src/routes/`）：
-1. **接入指引页** `docs.tsx`（或 `quickstart.tsx`）：
-   - 展示完整 `base_url`（从 `/site-config` 读，不硬编码）。
-   - `/v1/chat/completions`（OpenAI 兼容）与 `/v1/messages`（Anthropic 原生）两套示例，各给 **curl / Python / Node** 三段可复制代码，key 用占位符。
-   - Claude Code / Codex 接入片段（与 dashboard 的快速配置复用同一份 ConfigSnippet）。
-   - 能力矩阵表：模型 × 是否支持 流式/工具/视觉（数据来自模型表的能力标记，**只读对客信息**）。
-2. **api-keys 页增强**（接 M12-6.5.4 待补项）：每个 key 加「复制 base_url + 示例」按钮；端点白名单复选框（依赖下方后端字段）。
+## 7.4 里程碑 M17（P1）用户自助接入文档页　✅ 已完成（验收通过）
 
-**后端配套**（M17 后端，亦是 M12 api-keys 的前置）：
-- `api_keys` 增 `allowed_endpoints TEXT[]`（或 JSON）字段，迁移 `0012_key_endpoints.up.sql`，默认空=全部放行（存量不回退）。网关鉴权时校验请求端点是否在白名单内。
-- 模型能力标记：`models` 增 `supports_stream/supports_tools/supports_vision BOOL`（默认按 provider 推断），供能力矩阵展示。
+三审验收结论：base_url 已改为从 `/site-config` 的 `api_base_url` 字段读取（`docs.tsx:21` 用 `normalizedBaseURL(siteInfo?.api_base_url)`，空串时回退 origin，`:125`）。`models` 表已新增 `supports_stream/supports_tools/supports_vision` 三个 BOOL 字段（迁移 0013，DEFAULT false + 一次性回填），能力矩阵改为读真实字段（`docs.tsx:110-112` 删除了旧 `row.type` 猜测逻辑），admin 模型表单暴露三个开关。**两处伪实现均已修真。**
 
-**验收 M17**：接入页三语言示例可复制即用；能力矩阵与模型配置一致；设置了端点白名单的 key 调用非白名单端点被拒；存量无白名单的 key 行为不变。
+## 7.5 里程碑 M18（P1）admin 用户运营 + 数据导出　✅ 已完成（验收通过）
 
-## 7.5 里程碑 M18（P1）admin 用户运营 + 数据导出
+三审验收结论：同 M17，缺口（封禁/吊销 token 缺二次确认弹窗）已修复——`pages/admin/users.tsx` 三处已改为 `ConfirmDialog`（通用确认组件 `confirm-dialog.tsx`，已被 M22 黑名单页复用）。**唯一缺口闭合。**
 
-**现状**：`admin_user_service.go` 有 `AdjustBalance` 和改 status，但缺集中的用户运营面；report 只返 JSON，用户/财务无法对账。
+## 7.6 里程碑 M19（P1）可观测告警 + 渠道自愈　✅ 已完成（验收通过）
 
-**后端改动**：
-1. **用户运营动作**（`handler/admin/` + service）：在用户详情聚合「调余额 / 调用户级 RPM/并发上限 / 封禁解封 / 重置密码（发邮件）/ 强制下线（吊销 token）」。用户级 RPM/并发若无字段则 `users` 增 `rpm_limit/concurrency_limit`（默认 0=不限，覆盖优先级：key > 用户 > 全局默认）。迁移 `0013_user_ops.up.sql`。
-2. **CSV 导出**（流式，避免大内存）：`GET /admin/usage/export.csv`、`/admin/ledger/export.csv`、用户侧 `GET /user/usage/export.csv`（**仅导出对客字段，铁律 2**）。直接 `csv.Writer` 流式写 response，无需 xlsx 依赖。
-
-**前端改动**：
-1. admin 用户详情页 `Sheet`：上述运营动作五连按钮（破坏性操作走确认弹窗）。
-2. usage/ledger/logs 列表加「导出 CSV」按钮（admin 全量；user 仅自己且脱敏）。
-
-**验收 M18**：admin 可调额/封禁/重置/下线并留审计日志；CSV 导出字段正确、user 端导出无敏感字段；大数据量导出不 OOM（流式）。
-
-## 7.6 里程碑 M19（P1）可观测告警 + 渠道自愈
-
-**现状**：`ops_service.go` 只查询聚合，**无告警规则、无通知出口**；渠道 `fail_count/health` 已有但无自动动作。渠道挂了 admin 最后一个才知道。
-
-**后端改动**：
-1. **告警规则引擎**（`backend/internal/service/ops_alert_service.go`，参考 sub2api `ops_alert_evaluator_service.go`）：定时（如每分钟）评估规则——渠道连续失败 N 次、网关 5xx 率超阈值、上游 401/429 比例超阈值、用户余额低于阈值。规则可存 `system_settings` 或新表 `alert_rules`。
-2. **通知出口**（`notification_service.go`）：邮件（复用 M14 SMTP）+ Webhook（企业微信/飞书/Discord 通用 JSON）。`system_settings` 配收件人/webhook url。
-3. **渠道自愈**：连续失败达阈值自动置 `disabled` 并告警（与 M3 冷却互补——M3 是请求内排除，M19 是跨请求持久熔断 + 通知）。
-
-**前端改动**：admin settings 增「告警」tab（规则开关 + 阈值 + 通知渠道配置）；ops 页顶部展示当前活跃告警。
-
-**验收 M19**：构造渠道连续失败触发自动 disabled + 通知；余额低阈值触发用户邮件预警；Webhook 收到结构化告警。
+三审验收结论：admin settings 已新增独立「告警」Tab（`pages/admin/settings.tsx:46-54` general/alerts 分栏 + 规则阈值/收件人/webhook URL/provider 选择已上）；ops 页顶部已显示活跃告警（`ops.tsx:116-117`）；`notification_service.go:108-159` 按 provider 分支拼装了企业微信 markdown / 飞书 interactive card / 钉钉 markdown / Discord embeds，不再裸发 JSON。**两处缺口均已闭合。**
 
 ## 7.7 里程碑 M20（P2）公开状态页 + SEO/品牌收尾
 
@@ -647,6 +609,68 @@ pages/landing/
 **建议顺序**：M14（邮箱，最阻断）→ M15（防爆破）→ M16（合规，上线硬门槛）为 **P0 三连，必须先于对外开放**；M17（接入文档）→ M18（运营+导出）→ M19（告警）为 **P1 上线即补**；M20（状态页/SEO）为 **P2 增长期**。后端字段迁移（0010–0013）均 `DEFAULT` 安全、存量不回退。
 
 > **第七部分铁律**：所有新增（邮箱/风控/合规/告警/导出/状态页）均在**用户生命周期与运营层**，**不触碰计费公式**；任何对外/对用户的导出与状态页**继续遵守铁律 2**（不泄漏 base_cost/rate_multiplier/毛利/upstream_model_name/渠道密钥）。变现仍**仅兑换码**，不做在线支付/订阅/联盟/风控套件。
+
+---
+
+# 第八部分：运营增强三连（M21–M23）
+
+> **定位**：本部分是用户在 P1 验收后提出的三项新需求，均为「对外运营防薅羊毛 + 运营可观测」的实战需求。统一原则：**严守三条铁律**（计费公式不动、user 端零敏感字段、存量不回退）；所有封禁均**可逆 + 留痕 + 可解封**，杜绝误封无法挽回。
+>
+> **重要事实声明（必须让 agent 知道，避免做无用功）**：服务端 TCP 层只能拿到**出口 IP**。用户挂 VPN/代理时，后端拿到的就是 VPN 的 IP，**纯后端在物理上无法穿透 VPN 拿到用户真实家庭/本机 IP——任何"后端识别真机 IP"的承诺都是伪需求**。能逼近防薅的正确手段是**多维识别**：IP（挡同 IP 多开）+ 浏览器设备指纹（挡换 IP 不换设备）+ 经济模型（让薅无利可图）。下面 M22 据此设计。
+
+## 8.1 里程碑 M21（P1）代码收敛 + BOM 修复 + 指纹加固 🔴 全新未做
+
+> **本轮 agent 直接跳过了此里程碑**，git log 中无任何收敛相关提交。以下为完整可执行描述。
+
+### 8.1.1 中文 locale BOM 修复（小，先做）
+**只 `zh/admin.ts` 1 个文件有问题**（UTF-8 with BOM，由 PowerShell 写文件遗留）。BOM 会导致某些 i18n 加载器把第一个翻译 key 带 `\uFEFF` 前缀从而取不到值。
+
+**改动**：`frontend/app/src/i18n/locales/zh/admin.ts` → 另存为 UTF-8 without BOM。**其他 12 个 zh locale 文件编码正常，不要碰。** 修复后验证：重启 dev server 后 admin 相关页面中文翻译正常。
+
+### 8.1.2 类型合并 + 工具函数去重（一次性做完，禁止留半成品）
+
+**当前状态**：`packages/shared/src/` 下 `types.ts` / `admin-types.ts` / `user-types.ts` 三份独立文件仍存在——`admin-types.ts` 只是 `re-export` 无独立类型，`user-types.ts` 有 6 个独有类型（`UserDashboard`/`UserGatewayLog` 等）未合并。`app/src/lib/clipboard.ts`（copyText）未下沉到 `packages/ui`。
+
+**一次性做完以下**：
+1. **合并类型**：将 `user-types.ts` 中 6 个独有类型合并进 `types.ts`（用命名空间或前缀区分），删除 `admin-types.ts` 和 `user-types.ts` 两个文件，全仓改 import 路径。
+2. **工具函数下沉**：`app/src/lib/clipboard.ts` 的 `copyText` 如果有重复实现，下沉到 `packages/ui/src/lib/` 并改为 `app` 引用包路径；`fingerprint.ts` 是 M22 新增的且只在 `app` 用，暂不移动。
+3. **核查复用**：确认 `app` 没有自己重新实现了一遍 `@lingshu/ui` 已有内容。
+4. **无需动**：`app/src/lib/i18n.ts` 是 app 专用翻译辅助函数，不重复；`app/src/lib/utils.ts` 已有 `cn` 从 `@lingshu/ui` re-export，`formatMoney`/`formatCompact` 是 app 专用无需下沉。
+
+**验收 M21.2**：`npm run build` 通过；`packages/shared/src/` 只有 `types.ts`、`api-client.ts`、`design-tokens.ts`、`pricing.ts`、`index.ts`，无 `admin-types.ts`/`user-types.ts`；全仓搜无 `import` 指向已删文件；`clipboard.ts` 重复逻辑消除。
+
+### 8.1.3 设备指纹签名加固
+
+**当前问题**：M22 实现的设备指纹（`app/src/lib/fingerprint.ts`）只用 `crypto.randomUUID()` + `browserHint` 存 localStorage，**纯前端自报，清缓存即换 ID**，只能防完全不懂技术的人——攻击者跑脚本时只需清除 localStorage 或伪造 `X-Device-Id` 头。这个指纹层目前几乎是心理安慰。
+
+**加固方案（选做，如果信任当前防小白级别则跳过）**：
+- 注册/登录时，服务端返回一个 `device_token`（服务端签发的 JWT 或 HMAC 签名，绑定 `device_id + user_agent`），前端存 localStorage 并在后续请求回传。签名密钥由 `system_settings` 配置。这样攻击者伪造 Device-Id 头但无法伪造签名。
+- **简易加固方案（推荐，省 90% 工作量 得 70% 效果）**：后端收到 `X-Device-Id` 时校验其合法性——是否在同 `User-Agent` 下签名一致。用 `HMAC(device_id + user_agent, server_secret)` 生成 `X-Device-Sign`，前端自动附带。如果签名不匹配则忽略该设备 ID（回退到只用 IP 匹配）。
+- **如果本期不做加固，文档明确此用途：防小白级别，不保证对抗脚本。**
+
+## 8.2 里程碑 M22（P1）真实 IP 展示 + IP/设备指纹黑名单 + 防误封　✅ 已完成（验收通过）
+
+三审验收结论：七项子模块全部真做。统一 `httpx/clientip.go`、三处旧 clientIP() 重复全部替换、可信代理（默认只取 RemoteAddr）；admin 日志/CSV 补 client_ip、user 端零泄漏；`access_blacklist` 表完整；设备指纹采集 + X-Device-Id 上报；网关/登录/注册/兑换四点拦截 + CIDR 正确匹配 + Redis 缓存；admin 黑名单管理页可列表/新增/一键解封（软删留痕）；自动拉黑默认 7 天 TTL；全程审计 + 二次确认。**通过。**
+
+> **遗留弱点**：设备指纹仅 `randomUUID+browserHint` 存 localStorage，清缓存即换 ID。防小白可用，对抗脚本不足。由 M21.3 加固跟进。
+
+## 8.3 里程碑 M23（P1，可选随 M22 一起）注册送额度活动 + 防薅经济闸门
+
+> 仅当用户确实要上"注册/兑换送额度"活动时做；不做则跳过。与 M22(C)-5 呼应，单列以便独立取舍。
+
+**后端**：
+1. `system_settings` 增活动开关与参数：`signup_bonus_enabled`、`signup_bonus_amount`、`signup_bonus_unlock_threshold`（自充值累计达此额才解冻赠额，0=立即可用）、`signup_bonus_require_email_verified`（默认 true）。
+2. 赠额发放：注册成功（且邮箱已验证）时发 `signup_bonus_amount`，若 `unlock_threshold>0` 则赠额标记为**冻结**（`balance_ledger` 类型增 `signup_bonus`，单独冻结额度字段或 `users.frozen_balance`），扣费时**优先扣可用余额、冻结部分在达标后自动转可用**。**计费公式不动**——冻结只影响"可用余额"判定，不改 `charge = base_cost × rate_multiplier`。
+3. 风控联动：同设备指纹 / 同 IP 重复领取赠额按 M22 黑名单阈值拦截。
+
+**前端**：landing/注册页展示活动文案；dashboard 展示"冻结赠额 + 解冻进度"。
+
+**验收 M23**：开活动后新用户得赠额；设 unlock_threshold 时赠额冻结、自充值达标后自动解冻；同设备多开无法重复白嫖（命中 M22 拦截）；关闭活动后注册不再送额；计费公式与存量扣费零变化。
+
+---
+
+## 第八部分铁律
+> M21（未完成）仅收敛前端重复代码、零业务变更；M22（已完成）的所有封禁**可逆、留痕、可解封、默认带过期**，IP 仅 admin 可见、user 端零泄漏；M23（可选）赠额冻结只改"可用余额"判定，**`charge = base_cost × rate_multiplier` 绝对不动**，存量扣费不回退。**不承诺穿透 VPN 拿真机 IP（物理不可行）**，改用 IP + 设备指纹 + 经济闸门三层防薅。
 
 
 

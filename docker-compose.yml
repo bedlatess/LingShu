@@ -32,7 +32,6 @@ services:
     build: ./frontend
     ports:
       - "19080:80"     # 统一前端 app（公开门面 + /admin/*）
-      - "19081:8081"   # 兼容旧管理入口，同样托管统一 app
     depends_on:
       app:
         condition: service_healthy

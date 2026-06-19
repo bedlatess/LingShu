@@ -6,6 +6,15 @@ const navigation = {
   commandPlaceholder: "搜索页面或操作",
   commandEmpty: "没有找到匹配项",
   logout: "退出登录",
+  groups: {
+    overview: "概览",
+    resources: "资源",
+    account: "账户",
+    operations: "运营",
+    access: "用户与权限",
+    service: "服务配置",
+    system: "系统"
+  },
   userSection: {
     dashboard: "概览",
     docs: "接入指引",
